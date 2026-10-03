@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Mukta', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@keyframes sirenFlash {
+  0%, 100% {
+    background-color: rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.35);
+  }
+}
+
+.animate-siren-flash {
+  animation: sirenFlash 0.4s ease-in-out infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulseBorder 1.2s infinite;
+}
+
+@keyframes ringPhone {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20%, 60% {
+    transform: rotate(-15deg);
+  }
+  40%, 80% {
+    transform: rotate(15deg);
+  }
+}
+
+.animate-ring-phone {
+  animation: ringPhone 0.6s infinite;
+}
