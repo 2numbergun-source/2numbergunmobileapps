@@ -1,0 +1,6 @@
+{
+  "name": "सशस्त्र प्रहरी गण नं. २ - डिजिटल कमाण्ड, परिपत्र, हाजिरी तथा आपतकालीन प्रणाली",
+  "description": "सशस्त्र प्रहरी गण नं. २ महाराजगञ्जको डिजिटल हाजिरी, परिपत्र फोटो प्रसारण, आपतकालीन स्वचालित कल, फोटो ग्यालरी, सूचना पाटी तथा QR कोड प्रणाली",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
