@@ -33,7 +33,6 @@ import {
 import { Header, TabKey } from './components/Header';
 import { IdentityBar } from './components/IdentityBar';
 import { IdentitySelectModal } from './components/IdentitySelectModal';
-import { cloudSet } from './lib/cloud';
 import { AdminUnlockModal } from './components/AdminUnlockModal';
 import { EmergencyAlertModal } from './components/EmergencyAlertModal';
 import { OfficerQrModal } from './components/OfficerQrModal';
@@ -53,6 +52,8 @@ import { ContactsEmergencyTab } from './components/tabs/ContactsEmergencyTab';
 import { OfficeProfileTab } from './components/tabs/OfficeProfileTab';
 import { CalendarTab } from './components/tabs/CalendarTab';
 import { DigitalLibraryTab } from './components/tabs/DigitalLibraryTab';
+import { getCurrentNepaliDate } from './lib/nepaliDate';
+import { useSheetSync, ensureAdminKey, clearAdminKey } from './lib/sheetSync';
 
 export default function App() {
   // 1. Core State
@@ -157,10 +158,21 @@ export default function App() {
 
   const [activeAlerts, setActiveAlerts] = useState<EmergencyAlert[]>([]);
 
+  // SOS अलर्टको इतिहास (Sheet मा सधैँ रहन्छ; सक्रिय सूची अलग्गै चल्छ)
+  const [alertLog, setAlertLog] = useState<EmergencyAlert[]>(() => {
+    try {
+      const saved = localStorage.getItem('apf_gun2_alert_log');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    return [];
+  });
+
   // Persistent storage effects
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_officers_list', officers);
+      localStorage.setItem('apf_gun2_officers_list', JSON.stringify(officers));
     } catch (e) {
       console.warn(e);
     }
@@ -168,7 +180,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_battalion_config', battalionConfig);
+      localStorage.setItem('apf_gun2_battalion_config', JSON.stringify(battalionConfig));
     } catch (e) {
       console.warn(e);
     }
@@ -176,7 +188,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_circulars_list', circulars);
+      localStorage.setItem('apf_gun2_circulars_list', JSON.stringify(circulars));
     } catch (e) {
       console.warn(e);
     }
@@ -184,7 +196,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_gallery_photos', galleryPhotos);
+      localStorage.setItem('apf_gun2_gallery_photos', JSON.stringify(galleryPhotos));
     } catch (e) {
       console.warn(e);
     }
@@ -192,7 +204,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_notices_list', notices);
+      localStorage.setItem('apf_gun2_notices_list', JSON.stringify(notices));
     } catch (e) {
       console.warn(e);
     }
@@ -200,7 +212,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_duties_list', duties);
+      localStorage.setItem('apf_gun2_duties_list', JSON.stringify(duties));
     } catch (e) {
       console.warn(e);
     }
@@ -208,11 +220,39 @@ export default function App() {
 
   useEffect(() => {
     try {
-      cloudSet('apf_gun2_attendance_list', attendanceRecords);
+      localStorage.setItem('apf_gun2_attendance_list', JSON.stringify(attendanceRecords));
     } catch (e) {
       console.warn(e);
     }
   }, [attendanceRecords]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('apf_gun2_alert_log', JSON.stringify(alertLog));
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [alertLog]);
+
+  // Google Sheet सँग स्वचालित सिंक (हरेक परिवर्तन Sheet मा सेभ हुन्छ)
+  const configRows = React.useMemo(() => [{ id: 'config', ...battalionConfig }], [battalionConfig]);
+  useSheetSync('officers', officers, (r) => setOfficers(r as any));
+  useSheetSync('duties', duties, (r) => setDuties(r as any));
+  useSheetSync('attendance', attendanceRecords, (r) => setAttendanceRecords(r as any), 'upsert');
+  useSheetSync('notices', notices, (r) => setNotices(r as any));
+  useSheetSync('circulars', circulars, (r) => setCirculars(r as any));
+  useSheetSync('gallery', galleryPhotos, (r) => setGalleryPhotos(r as any));
+  useSheetSync('sos_alerts', alertLog, (r) => setAlertLog(r as any), 'upsert');
+  useSheetSync('config', configRows, (r) => {
+    if (!r[0]) return;
+    const { id: _id, ...rest } = r[0] as any;
+    setBattalionConfig((prev) => ({ ...prev, ...rest }));
+  });
+
+  // एडमिन मोडमा Sheet को एडमिन कुञ्जी (एक पटक) माग्ने
+  useEffect(() => {
+    if (isAdmin) ensureAdminKey();
+  }, [isAdmin]);
 
   // Current active officer object
   const currentOfficer =
@@ -225,7 +265,7 @@ export default function App() {
 
   // Today's attendance record
   const todayAttendance = attendanceRecords.find(
-    (r) => r.officerId === currentOfficer.id
+    (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate().dateString
   );
 
   // Switch identity
@@ -243,6 +283,7 @@ export default function App() {
     if (isAdmin) {
       setIsAdmin(false);
       saveAdminMode(false);
+      clearAdminKey();
     } else {
       setIsAdminModalOpen(true);
     }
@@ -302,7 +343,17 @@ export default function App() {
 
   // Attendance management
   const handleAddAttendanceRecord = (newRecord: AttendanceRecord) => {
-    setAttendanceRecords((prev) => [newRecord, ...prev.filter(r => !(r.officerId === newRecord.officerId && r.date === newRecord.date))]);
+    setAttendanceRecords((prev) => {
+      // एउटै कर्मचारीको एक दिनमा एक हाजिरी र एउटै मोबाइलबाट एक दिनमा एक जनाको मात्र हाजिरी
+      const dup = prev.some(
+        (r) =>
+          r.date === newRecord.date &&
+          (r.officerId === newRecord.officerId ||
+            (!!newRecord.deviceId && r.deviceId === newRecord.deviceId))
+      );
+      if (dup) return prev;
+      return [newRecord, ...prev];
+    });
   };
 
   const handleUpdateAttendanceRecord = (recordId: string, updates: Partial<AttendanceRecord>) => {
@@ -314,10 +365,18 @@ export default function App() {
   // Emergency SOS dispatch
   const handleDispatchAlert = (alert: EmergencyAlert) => {
     setActiveAlerts((prev) => [alert, ...prev]);
+    setAlertLog((prev) => (prev.some((a) => a.id === alert.id) ? prev : [alert, ...prev]));
   };
 
   const handleResolveAlert = (alertId: string) => {
     setActiveAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    setAlertLog((prev) =>
+      prev.map((a) =>
+        (a.id === alertId || a.officerId === alertId) && a.status !== 'समाधान भयो'
+          ? { ...a, status: 'समाधान भयो' as EmergencyAlert['status'] }
+          : a
+      )
+    );
   };
 
   // Count unread circulars for current officer
@@ -516,7 +575,7 @@ export default function App() {
           </div>
 
           <div className="bg-blue-600 text-white font-bold px-3 py-1 rounded-md shadow text-xs">
-            २०८३ साल आश्विन १३ गते, मंगलबार
+            {getCurrentNepaliDate().fullText.replace(/^(\S+) /, '$1 साल ')}
           </div>
         </div>
       </footer>
