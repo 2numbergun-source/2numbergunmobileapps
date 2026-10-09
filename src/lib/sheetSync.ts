@@ -16,7 +16,7 @@ type Mode = 'replace' | 'upsert';
 type AnyRow = { id: string; [k: string]: any };
 
 const ENV = ((import.meta as any).env || {}) as Record<string, string | undefined>;
-const URL_ = ENV.VITE_SHEET_URL;
+const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbx3Ee6csxA12Wlc05Rd46MpTLoySFvK3I0OqW2HRUUvsQIqsD5AMQU7IdeeL5dQTbhF/exec';
 const TOKEN = ENV.VITE_APP_TOKEN ?? '';
 const POLL_MS = 90_000;      // हरेक ९० सेकेन्डमा नयाँ डाटा हेर्ने (स्क्रिन खुला हुँदा मात्र)
 const DEBOUNCE_MS = 1_500;   // परिवर्तन गरेको १.५ सेकेन्डपछि Sheet मा पठाउने
