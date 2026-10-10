@@ -1,14 +1,10 @@
 /**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * src/lib/sheetSync.ts  -  App.tsx ले प्रयोग गर्ने useSheetSync
- *
- * useSheetSync(table, rows, setRows, mode)
- *   mode 'replace' (पूर्वनिर्धारित): थप/सच्याइ/मेटाइ सबै Sheet मा जान्छ
- *   mode 'upsert'  : थप/सच्याइ मात्र (हाजिरी, SOS इतिहास कहिल्यै मेटिँदैन)
- *
- * Netlify (Site settings > Environment variables) र .env मा:
- *   VITE_SHEET_URL = Apps Script को /exec URL
- *   VITE_APP_TOKEN = Code.gs को APP_TOKEN
- * VITE_SHEET_URL नभए एप पहिले जस्तै यही डिभाइसमा मात्र (localStorage) चल्छ।
  */
 import { useEffect, useRef } from 'react';
 
@@ -16,14 +12,14 @@ type Mode = 'replace' | 'upsert';
 type AnyRow = { id: string; [k: string]: any };
 
 const ENV = ((import.meta as any).env || {}) as Record<string, string | undefined>;
-const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbxOZ3rarkavbdWkAEq1FhPnr9YWJk8lWSTcjSPTbFA7Yxhm0TR-9zKRzj-0asOaYPEj/exec';
-const TOKEN = ENV.VITE_APP_TOKEN ?? '';
-const POLL_MS = 90_000;      // हरेक ९० सेकेन्डमा नयाँ डाटा हेर्ने (स्क्रिन खुला हुँदा मात्र)
-const DEBOUNCE_MS = 1_500;   // परिवर्तन गरेको १.५ सेकेन्डपछि Sheet मा पठाउने
+const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbwIzk21r8JWBtyzC3aunYSeKm93jogb8RSxk3ytgbf4yYta_g65TltBOO2I0sNfK3re/exec';
+const TOKEN = 'apf-gan2-token-change-me'; // Apps Script को APP_TOKEN सँग ठ्याक्कै मिल्ने
+
+const POLL_MS = 90_000;
+const DEBOUNCE_MS = 1_500;
 const KEY_STORE = 'sheet_admin_key';
 const KEY_EVENT = 'sheet-admin-key';
 
-// ---------- एडमिन कुञ्जी (Code.gs को ADMIN_KEY) ----------
 export function getAdminKey(): string {
   try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; }
 }
@@ -32,16 +28,14 @@ export function setAdminKey(k: string) {
   window.dispatchEvent(new Event(KEY_EVENT));
 }
 export function clearAdminKey() { setAdminKey(''); }
-/** एडमिन मोडमा कुञ्जी छैन भने एक पटक सोध्छ */
+
 export function ensureAdminKey() {
   if (!URL_ || getAdminKey()) return;
   const k = window.prompt('Google Sheet एडमिन कुञ्जी (Code.gs को ADMIN_KEY) हाल्नुहोस्:');
   if (k && k.trim()) setAdminKey(k.trim());
 }
 
-// ---------- सर्भर कल ----------
 async function call(action: string, payload: Record<string, any> = {}) {
-  // text/plain ले CORS preflight जोगाउँछ (Apps Script का लागि आवश्यक)
   const res = await fetch(URL_!, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -52,7 +46,6 @@ async function call(action: string, payload: Record<string, any> = {}) {
   return j;
 }
 
-// सबै हुकले एउटै अनुरोध साझा गर्छन् (८ तालिका = १ कल); ver उही भए सर्भरले केही पठाउँदैन
 let cache: Record<string, AnyRow[]> = {};
 let lastVer = '';
 let lastFetch = 0;
@@ -77,7 +70,6 @@ function getAll(maxAgeMs: number): Promise<Record<string, AnyRow[]>> {
   return inflight;
 }
 
-// कुञ्जीको क्रम नमिल्दा पनि बराबर ठान्न
 function stable(v: any): string {
   if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
   if (v && typeof v === 'object') {
@@ -98,14 +90,13 @@ export function useSheetSync<T extends { id: string }>(
   const setRef = useRef(setRows);
   setRef.current = setRows;
 
-  const snap = useRef<Map<string, string>>(new Map());   // Sheet मा भएको अन्तिम अवस्था
+  const snap = useRef<Map<string, string>>(new Map());
   const ready = useRef(false);
   const busy = useRef(false);
   const seeding = useRef(false);
   const timer = useRef<any>(null);
   const scheduleRef = useRef<() => void>(() => {});
 
-  // डाटा बदलिँदा Sheet मा पठाउन तालिका मिलाउने
   useEffect(() => {
     if (ready.current) scheduleRef.current();
   }, [rows]);
@@ -162,7 +153,6 @@ export function useSheetSync<T extends { id: string }>(
         changed.forEach((r) => snap.current.set(r.id, stable(savedBy.get(r.id) ?? r)));
         removed.forEach((id) => snap.current.delete(id));
 
-        // फोटो Drive लिङ्क भएर आएमा स्थानीय प्रतिलाई पनि लिङ्कले बदल्ने (base64 फेरि नपठाउन)
         const swap = new Map(
           saved.filter((s) => stable(s) !== sent.get(s.id)).map((s) => [s.id, s] as [string, AnyRow]),
         );
@@ -175,7 +165,6 @@ export function useSheetSync<T extends { id: string }>(
       } catch (e: any) {
         console.warn('[sheet]', table, e?.message);
         if (String(e?.message).includes('forbidden')) {
-          // अनुमति छैन: स्थानीय परिवर्तन फिर्ता गरी Sheet को डाटा देखाउने
           try {
             const remote = ((await getAll(0))[table] || []) as AnyRow[];
             if (remote.length) applyRemote(remote);
@@ -196,7 +185,6 @@ export function useSheetSync<T extends { id: string }>(
         const local = rowsRef.current.filter((r) => r && r.id);
 
         if (remote.length === 0) {
-          // Sheet खाली: एडमिन डिभाइसबाट पहिलो पटक अहिलेको डाटा Sheet मा सार्ने (एक पटक मात्र)
           if (getAdminKey() && local.length && !localStorage.getItem(seedKey) && !seeding.current) {
             seeding.current = true;
             try {
@@ -216,7 +204,6 @@ export function useSheetSync<T extends { id: string }>(
         }
 
         try { localStorage.setItem(seedKey, '1'); } catch {}
-        // पहिलो पटक: Sheet नै सत्य। पछि: स्थानीय परिवर्तन पठाउन बाँकी भए पर्खने
         if (ready.current && (busy.current || hasPending())) return;
         applyRemote(remote);
         ready.current = true;
