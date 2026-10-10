@@ -260,7 +260,7 @@ export default function App() {
 
   // Today's attendance record
   const todayAttendance = attendanceRecords.find(
-    (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate().dateString
+    (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate()?.dateString
   );
 
   // Switch identity
@@ -569,7 +569,7 @@ export default function App() {
           </div>
 
           <div className="bg-blue-600 text-white font-bold px-3 py-1 rounded-md shadow text-xs">
-            {getCurrentNepaliDate().fullText.replace(/^(\S+) /, '$1 साल ')}
+            {(() => { const d: any = getCurrentNepaliDate(); const t = typeof d === 'string' ? d : (d?.fullText ?? d?.dateString ?? ''); return String(t).replace(/^(\S+) /, '$1 साल '); })()}
           </div>
         </div>
       </footer>
