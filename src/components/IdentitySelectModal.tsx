@@ -196,11 +196,14 @@ export const IdentitySelectModal: React.FC<IdentitySelectModalProps> = ({
                     onChange={(e) => setNewRank(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                   >
+                      <option value="प्रहरी कार्यालय सहयोगी">प्रहरी कार्यालय सहयोगी</option>
                     <option value="प्रहरी जवान">प्रहरी जवान</option>
                     <option value="प्रहरी सहायक हवल्दार">प्रहरी सहायक हवल्दार</option>
                     <option value="प्रहरी हवल्दार">प्रहरी हवल्दार</option>
+                     <option value="प्रहरी बरिष्ठ हवल्दार">प्रहरी बरिष्ठ हवल्दार</option>
                     <option value="प्र.स.नि. (ASI)">प्र.स.नि. (ASI)</option>
                     <option value="प्र.ना.नि. (SI)">प्र.ना.नि. (SI)</option>
+                      <option value="प्र.ब.ना.नि. (SSI)">प्र.ब.ना.नि. (SSI)</option>
                     <option value="प्रहरी निरीक्षक (Inspector)">प्रहरी निरीक्षक (Inspector)</option>
                     <option value="प्रहरी नायव उपरीक्षक (DSP)">प्रहरी नायव उपरीक्षक (DSP)</option>
                     <option value="प्रहरी उपरीक्षक (SP)">प्रहरी उपरीक्षक (SP)</option>
