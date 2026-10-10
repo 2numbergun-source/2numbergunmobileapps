@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   BATTALION_CONFIG, 
   INITIAL_OFFICERS, 
@@ -53,22 +53,42 @@ import { OfficeProfileTab } from './components/tabs/OfficeProfileTab';
 import { CalendarTab } from './components/tabs/CalendarTab';
 import { DigitalLibraryTab } from './components/tabs/DigitalLibraryTab';
 import { getCurrentNepaliDate } from './lib/nepaliDate';
-import { useSheetSync, ensureAdminKey, clearAdminKey } from './lib/sheetSync';
+import { cloudSet } from './lib/cloud';
+
+// localStorage बाट सूची पढ्ने सुरक्षित तरिका (डाटा बिग्रिएको वा सूची नभए पूर्वनिर्धारित प्रयोग गर्छ)
+function loadList<T>(key: string, fallback: T[]): T[] {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed as T[];
+    }
+  } catch {
+    // fallback
+  }
+  return fallback;
+}
+
+// Admin ले परिवर्तन गर्दा Google Sheet मा बचत गर्ने (पहिलो रेन्डरमा नबचाउने)
+function useCloudSave(key: string, value: unknown) {
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    cloudSet(key, value);
+  }, [key, value]);
+}
 
 export default function App() {
   // 1. Core State
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   
   // Officers
-  const [officers, setOfficers] = useState<Officer[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_officers_list');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_OFFICERS;
-  });
+  const [officers, setOfficers] = useState<Officer[]>(() =>
+    loadList<Officer>('apf_gun2_officers_list', INITIAL_OFFICERS)
+  );
 
   const [currentOfficerId, setCurrentOfficerId] = useState<string>(() => getSavedOfficerId());
   const [isAdmin, setIsAdmin] = useState<boolean>(() => getSavedAdminMode());
@@ -86,15 +106,17 @@ export default function App() {
       const saved = localStorage.getItem('apf_gun2_battalion_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Merge with BATTALION_CONFIG to guarantee fresh commander & darbandi if not explicitly customized
-        return {
-          ...BATTALION_CONFIG,
-          ...parsed,
-          chiefCommanderName: parsed.chiefCommanderName && parsed.chiefCommanderName !== 'तिलक भारती' ? parsed.chiefCommanderName : BATTALION_CONFIG.chiefCommanderName,
-          totalDarbandiStrength: parsed.totalDarbandiStrength && parsed.totalDarbandiStrength !== 320 ? parsed.totalDarbandiStrength : BATTALION_CONFIG.totalDarbandiStrength,
-          availableForces: parsed.availableForces && parsed.availableForces !== 284 ? parsed.availableForces : BATTALION_CONFIG.availableForces,
-          dutyOfficerContact: parsed.dutyOfficerContact && parsed.dutyOfficerContact !== '९८५१२३०००२' ? parsed.dutyOfficerContact : BATTALION_CONFIG.dutyOfficerContact,
-        };
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          // Merge with BATTALION_CONFIG to guarantee fresh commander & darbandi if not explicitly customized
+          return {
+            ...BATTALION_CONFIG,
+            ...parsed,
+            chiefCommanderName: parsed.chiefCommanderName && parsed.chiefCommanderName !== 'तिलक भारती' ? parsed.chiefCommanderName : BATTALION_CONFIG.chiefCommanderName,
+            totalDarbandiStrength: parsed.totalDarbandiStrength && parsed.totalDarbandiStrength !== 320 ? parsed.totalDarbandiStrength : BATTALION_CONFIG.totalDarbandiStrength,
+            availableForces: parsed.availableForces && parsed.availableForces !== 284 ? parsed.availableForces : BATTALION_CONFIG.availableForces,
+            dutyOfficerContact: parsed.dutyOfficerContact && parsed.dutyOfficerContact !== '९८५१२३०००२' ? parsed.dutyOfficerContact : BATTALION_CONFIG.dutyOfficerContact,
+          };
+        }
       }
     } catch {
       // fallback
@@ -103,128 +125,44 @@ export default function App() {
   });
 
   // Circulars (तालुक कार्यालयका परिपत्रहरू)
-  const [circulars, setCirculars] = useState<CircularDocument[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_circulars_list');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_CIRCULARS;
-  });
+  const [circulars, setCirculars] = useState<CircularDocument[]>(() =>
+    loadList<CircularDocument>('apf_gun2_circulars_list', INITIAL_CIRCULARS)
+  );
 
   // Gallery Photos (कार्यालय फोटो ग्यालरी)
-  const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_gallery_photos');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_GALLERY_PHOTOS;
-  });
+  const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>(() =>
+    loadList<GalleryPhoto>('apf_gun2_gallery_photos', INITIAL_GALLERY_PHOTOS)
+  );
 
   // Notice Board (सूचना पाटी)
-  const [notices, setNotices] = useState<NoticeItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_notices_list');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_NOTICES;
-  });
+  const [notices, setNotices] = useState<NoticeItem[]>(() =>
+    loadList<NoticeItem>('apf_gun2_notices_list', INITIAL_NOTICES)
+  );
 
   // Duties & Attendance
-  const [duties, setDuties] = useState<DutyItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_duties_list');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_DUTIES;
-  });
+  const [duties, setDuties] = useState<DutyItem[]>(() =>
+    loadList<DutyItem>('apf_gun2_duties_list', INITIAL_DUTIES)
+  );
 
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_attendance_list');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return INITIAL_ATTENDANCE;
-  });
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() =>
+    loadList<AttendanceRecord>('apf_gun2_attendance_list', INITIAL_ATTENDANCE)
+  );
 
   const [activeAlerts, setActiveAlerts] = useState<EmergencyAlert[]>([]);
 
-  // SOS अलर्टको इतिहास (Sheet मा सधैँ रहन्छ; सक्रिय सूची अलग्गै चल्छ)
-  const [alertLog, setAlertLog] = useState<EmergencyAlert[]>(() => {
-    try {
-      const saved = localStorage.getItem('apf_gun2_alert_log');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return [];
-  });
+  // SOS अलर्टको इतिहास (यो उपकरणमा मात्र राखिन्छ)
+  const [alertLog, setAlertLog] = useState<EmergencyAlert[]>(() =>
+    loadList<EmergencyAlert>('apf_gun2_alert_log', [])
+  );
 
-  // Persistent storage effects
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_officers_list', JSON.stringify(officers));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [officers]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_battalion_config', JSON.stringify(battalionConfig));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [battalionConfig]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_circulars_list', JSON.stringify(circulars));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [circulars]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_gallery_photos', JSON.stringify(galleryPhotos));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [galleryPhotos]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_notices_list', JSON.stringify(notices));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [notices]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_duties_list', JSON.stringify(duties));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [duties]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('apf_gun2_attendance_list', JSON.stringify(attendanceRecords));
-    } catch (e) {
-      console.warn(e);
-    }
-  }, [attendanceRecords]);
+  // परिवर्तन: localStorage मा राख्ने + Admin भए Google Sheet मा पठाउने (cloudSet ले दुवै गर्छ)
+  useCloudSave('apf_gun2_officers_list', officers);
+  useCloudSave('apf_gun2_battalion_config', battalionConfig);
+  useCloudSave('apf_gun2_circulars_list', circulars);
+  useCloudSave('apf_gun2_gallery_photos', galleryPhotos);
+  useCloudSave('apf_gun2_notices_list', notices);
+  useCloudSave('apf_gun2_duties_list', duties);
+  useCloudSave('apf_gun2_attendance_list', attendanceRecords);
 
   useEffect(() => {
     try {
@@ -233,26 +171,6 @@ export default function App() {
       console.warn(e);
     }
   }, [alertLog]);
-
-  // Google Sheet सँग स्वचालित सिंक (हरेक परिवर्तन Sheet मा सेभ हुन्छ)
-  const configRows = React.useMemo(() => [{ id: 'config', ...battalionConfig }], [battalionConfig]);
-  useSheetSync('officers', officers, (r) => setOfficers(r as any));
-  useSheetSync('duties', duties, (r) => setDuties(r as any));
-  useSheetSync('attendance', attendanceRecords, (r) => setAttendanceRecords(r as any), 'upsert');
-  useSheetSync('notices', notices, (r) => setNotices(r as any));
-  useSheetSync('circulars', circulars, (r) => setCirculars(r as any));
-  useSheetSync('gallery', galleryPhotos, (r) => setGalleryPhotos(r as any));
-  useSheetSync('sos_alerts', alertLog, (r) => setAlertLog(r as any), 'upsert');
-  useSheetSync('config', configRows, (r) => {
-    if (!r[0]) return;
-    const { id: _id, ...rest } = r[0] as any;
-    setBattalionConfig((prev) => ({ ...prev, ...rest }));
-  });
-
-  // एडमिन मोडमा Sheet को एडमिन कुञ्जी (एक पटक) माग्ने
-  useEffect(() => {
-    if (isAdmin) ensureAdminKey();
-  }, [isAdmin]);
 
   // Current active officer object
   const currentOfficer =
@@ -283,7 +201,6 @@ export default function App() {
     if (isAdmin) {
       setIsAdmin(false);
       saveAdminMode(false);
-      clearAdminKey();
     } else {
       setIsAdminModalOpen(true);
     }
@@ -306,8 +223,9 @@ export default function App() {
   const handleAcknowledgeCircular = (circId: string, officerId: string) => {
     setCirculars((prev) =>
       prev.map((c) => {
-        if (c.id === circId && !c.acknowledgedOfficerIds.includes(officerId)) {
-          return { ...c, acknowledgedOfficerIds: [...c.acknowledgedOfficerIds, officerId] };
+        const acked = c.acknowledgedOfficerIds || [];
+        if (c.id === circId && !acked.includes(officerId)) {
+          return { ...c, acknowledgedOfficerIds: [...acked, officerId] };
         }
         return c;
       })
@@ -381,7 +299,7 @@ export default function App() {
 
   // Count unread circulars for current officer
   const unreadCircularCount = circulars.filter(
-    (c) => !c.acknowledgedOfficerIds.includes(currentOfficer.id)
+    (c) => !(c.acknowledgedOfficerIds || []).includes(currentOfficer.id)
   ).length;
 
   return (
@@ -575,7 +493,7 @@ export default function App() {
           </div>
 
           <div className="bg-blue-600 text-white font-bold px-3 py-1 rounded-md shadow text-xs">
-            {getCurrentNepaliDate().fullText.replace(/^(\S+) /, '$1 साल ')}
+            {String(getCurrentNepaliDate().fullText || '').replace(/^(\S+) /, '$1 साल ')}
           </div>
         </div>
       </footer>
