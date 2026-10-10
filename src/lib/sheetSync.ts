@@ -13,7 +13,7 @@ type AnyRow = { id: string; [k: string]: any };
 
 const ENV = ((import.meta as any).env || {}) as Record<string, string | undefined>;
 const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbwIzk21r8JWBtyzC3aunYSeKm93jogb8RSxk3ytgbf4yYta_g65TltBOO2I0sNfK3re/exec';
-const TOKEN = 'apf-gan2-token-change-me'; // Apps Script को APP_TOKEN सँग ठ्याक्कै मिल्ने
+const TOKEN = 'Gun@123456789'; // Apps Script को APP_TOKEN सँग ठ्याक्कै मिल्ने
 
 const POLL_MS = 90_000;
 const DEBOUNCE_MS = 1_500;
