@@ -1,5 +1,5 @@
 // Google Sheet (Apps Script) सँग सम्पर्क गर्ने तह
-const URL_ = import.meta.env.VITE_SCRIPT_URL as string;
+const URL_ = (import.meta.env.VITE_SCRIPT_URL as string) || 'https://script.google.com/macros/s/AKfycbx3Ee6csxA12Wlc05Rd46MpTLoySFvK3I0OqW2HRUUvsQIqsD5AMQU7IdeeL5dQTbhF/exec';
 const K = { dev: 'apf_device_id', tok: 'apf_token', role: 'apf_role', oid: 'apf_officer' };
 export const deviceId = (): string => { let d = localStorage.getItem(K.dev); if (!d) { d = crypto.randomUUID(); localStorage.setItem(K.dev, d); } return d; };
 export const session = () => ({ token: localStorage.getItem(K.tok) || '', role: localStorage.getItem(K.role) || '', officerId: localStorage.getItem(K.oid) || '' });
