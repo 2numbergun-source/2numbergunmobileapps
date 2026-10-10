@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  MapPin, 
-  CheckCircle2, 
-  Smartphone, 
-  ShieldCheck, 
-  QrCode, 
-  KeyRound, 
-  Download, 
-  Search, 
-  Lock, 
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  MapPin,
+  CheckCircle2,
+  ShieldCheck,
+  QrCode,
+  KeyRound,
+  Download,
+  Search,
+  Lock,
   LogOut,
   Calendar,
   ChevronLeft,
@@ -19,9 +18,9 @@ import * as XLSX from 'xlsx';
 import { Officer, AttendanceRecord, BattalionConfig } from '../../types/police';
 import { calculateDistanceMeters } from '../../lib/alerts';
 import { getDeviceInfoSummary, getDeviceId, getDeviceAttendanceOwner, markDeviceAttendance } from '../../data/deviceIdentity';
-import { 
-  getCurrentNepaliDate, 
-  toNepaliNumber, 
+import {
+  getCurrentNepaliDate,
+  toNepaliNumber,
   getNepaliDaysOfMonth,
   getDaysInNepaliMonth,
   getWeekdayOfBsDate,
@@ -29,6 +28,38 @@ import {
   NEPALI_MONTHS,
   NEPALI_WEEKDAYS
 } from '../../lib/nepaliDate';
+
+// ---------------------------------------------------------------------------
+// स्थिरांकहरू (Constants)
+// ---------------------------------------------------------------------------
+const DUTY_START_MINUTES = 9 * 60; // बिहान ९:०० बजे ड्युटी सुरु
+const NEPAL_TZ = 'Asia/Kathmandu';
+const MAX_POSITION_AGE_MS = 30 * 1000; // ३० सेकेन्डभन्दा पुरानो GPS स्थान मान्य छैन
+const PIN_MAX_ATTEMPTS = 5; // गलत PIN को अधिकतम प्रयास
+const PIN_LOCK_MS = 60 * 1000; // सीमा नाघेपछि १ मिनेट लक
+// गेटको QR मा लेखिने कोड। battalionConfig.qrToken सेट गरेर यसलाई गोप्य राख्नुहोस्।
+const DEFAULT_QR_TOKEN = 'APF-GAN2-MAHARAJGUNJ-GATE';
+
+type DayStatus = 'P' | 'L' | 'A' | 'OFF' | '-';
+
+// मिति → तुलना गर्न मिल्ने अंक (YYYYMMDD)
+const keyOfDate = (str: string): number => {
+  const p = parseNepaliDateString(str);
+  return p ? p.year * 10000 + p.month * 100 + p.day : 0;
+};
+
+// नेपाल समय (Asia/Kathmandu) अनुसार घण्टा र मिनेट — फोनको टाइमजोन फेरेर छल्न नसकियोस्
+const getNepalClock = () => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: NEPAL_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24;
+  const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  return { h, m };
+};
 
 interface AttendanceTabProps {
   currentOfficer: Officer;
@@ -53,31 +84,29 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 }) => {
   // Current Nepali Date
   const currentNepali = getCurrentNepaliDate();
+  const todayKey = keyOfDate(currentNepali.dateString);
 
-  // Dynamic Nepali Year and Month Selection (नेपाली क्यालेन्डर अनुसार २९, ३०, ३१ वा ३२ गते यकिन)
+  // Dynamic Nepali Year and Month Selection
   const [selectedYear, setSelectedYear] = useState<number>(currentNepali.year);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(currentNepali.month - 1); // 0 = बैशाख, 5 = असोज
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(currentNepali.month - 1);
 
-  // Calculate actual total days in selected Nepali month (e.g. 29, 30, 31, or 32)
   const totalDaysInMonth = useMemo(() => {
     return getDaysInNepaliMonth(selectedYear, selectedMonthIndex);
   }, [selectedYear, selectedMonthIndex]);
 
-  // Dynamic array of days [1, 2, ... totalDaysInMonth]
   const monthDays = useMemo(() => {
     return getNepaliDaysOfMonth(totalDaysInMonth);
   }, [totalDaysInMonth]);
 
   const selectedMonthName = NEPALI_MONTHS[selectedMonthIndex];
 
-  // Geolocation & geofence state
-  // ५० मिटर नियम कडा: नक्कली (सिमुलेटर) स्थान छैन, वास्तविक GPS बाट मात्र दूरी निकालिन्छ
+  // Geolocation & geofence state (वास्तविक GPS मात्र)
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
     lat: battalionConfig.centerCoords.lat,
     lng: battalionConfig.centerCoords.lng,
   });
   const [distanceMeters, setDistanceMeters] = useState<number>(0);
-  const [gpsFixed, setGpsFixed] = useState<boolean>(false); // वास्तविक GPS स्थान प्राप्त भयो?
+  const [gpsFixed, setGpsFixed] = useState<boolean>(false);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -85,25 +114,30 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   // Verification method state: GPS + PIN or GPS + QR
   const [verificationType, setVerificationType] = useState<'pin' | 'qr'>('pin');
   const [inputPin, setInputPin] = useState<string>('');
+  const [pinAttempts, setPinAttempts] = useState<number>(0);
+  const [pinLockedUntil, setPinLockedUntil] = useState<number>(0);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // QR स्क्यान (वास्तविक क्यामेरा + BarcodeDetector, नभए म्यानुअल कोड)
   const [qrVerified, setQrVerified] = useState<boolean>(false);
   const [qrScanning, setQrScanning] = useState<boolean>(false);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrManual, setQrManual] = useState<string>('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const expectedQr: string = String((battalionConfig as any).qrToken || DEFAULT_QR_TOKEN);
 
   // Search & filter for ledger
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Pagination for Ledger table: Display only 4 or 5 officers per page so it stays compact and neat!
+  // Pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 5;
 
-  // View mode toggle: 'monthly-matrix' vs 'daily-logs'
-  // पहिलो पटक खुल्दा दैनिक हाजिरी देखिने (आजको मिति)
   const [viewMode, setViewMode] = useState<'monthly-matrix' | 'daily-logs'>('daily-logs');
-
-  // दैनिक हाजिरीको लागि चयन गरिएको गते
   const [selectedDay, setSelectedDay] = useState<number>(currentNepali.day);
 
-  // Excel डाउनलोड (Admin मात्र): दैनिक / महिनाभरको / मिति दायरा
+  // Excel डाउनलोड (Admin मात्र)
   const [exportScope, setExportScope] = useState<'day' | 'month' | 'range'>('day');
   const [rangeFrom, setRangeFrom] = useState<{ month: number; day: number }>({ month: currentNepali.month - 1, day: 1 });
   const [rangeTo, setRangeTo] = useState<{ month: number; day: number }>({ month: currentNepali.month - 1, day: currentNepali.day });
@@ -113,7 +147,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     (r) => r.officerId === currentOfficer.id && r.date === currentNepali.dateString
   );
 
-  // यो मोबाइलबाट आजको हाजिरी अर्कै कर्मचारीले लगाइसकेको छ कि? (एक मोबाइल = एक कर्मचारी = दिनको एक हाजिरी)
+  // एक मोबाइल = एक कर्मचारी = दिनको एक हाजिरी
   const deviceOwnerToday = getDeviceAttendanceOwner(currentNepali.dateString);
   const deviceUsedByOther = !!deviceOwnerToday && deviceOwnerToday !== currentOfficer.id;
   const deviceOwnerName =
@@ -129,10 +163,10 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       battalionConfig.centerCoords.lat,
       battalionConfig.centerCoords.lng
     );
-    setDistanceMeters(dist);
+    setDistanceMeters(Math.round(dist));
   }, [currentCoords, battalionConfig]);
 
-  // वास्तविक GPS बाट ताजा स्थान लिने (नक्कली/सिमुलेटर स्थान प्रयोग हुँदैन)
+  // वास्तविक GPS बाट ताजा स्थान लिने
   const getFreshPosition = (): Promise<GeolocationPosition> =>
     new Promise((resolve, reject) => {
       if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -176,29 +210,149 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
   const isWithinBoundary = gpsFixed && distanceMeters <= battalionConfig.virtualBoundaryMeters;
 
+  // ---------------- QR स्क्यानर ----------------
+  const stopScanner = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setQrScanning(false);
+  };
+
+  const startScanner = async () => {
+    setQrError(null);
+    const BD = (window as any).BarcodeDetector;
+    if (!BD || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setQrError('यो ब्राउजरले क्यामेरा QR स्क्यान समर्थन गर्दैन। तल QR कोड म्यानुअल प्रविष्ट गर्नुहोस्।');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
+      setQrScanning(true);
+    } catch {
+      setQrError('क्यामेरा अनुमति दिइएको छैन। अनुमति दिनुहोस् वा QR कोड म्यानुअल प्रविष्ट गर्नुहोस्।');
+    }
+  };
+
+  // स्क्यान सुरु भएपछि भिडियो जोड्ने र QR पढ्ने
+  useEffect(() => {
+    if (!qrScanning) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    video.play().catch(() => {});
+
+    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+    let busy = false;
+    const timer = window.setInterval(async () => {
+      if (busy || video.readyState < 2) return;
+      busy = true;
+      try {
+        const codes = await detector.detect(video);
+        if (codes && codes.length > 0) {
+          const raw = String(codes[0].rawValue || '').trim();
+          if (raw === expectedQr) {
+            setQrVerified(true);
+            setQrError(null);
+            stopScanner();
+          } else {
+            setQrError('गलत QR कोड! गणको आधिकारिक गेट QR मात्र स्क्यान गर्नुहोस्।');
+          }
+        }
+      } catch {
+        /* पढ्न सकिएन, पुनः प्रयास हुन्छ */
+      } finally {
+        busy = false;
+      }
+    }, 400);
+
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrScanning]);
+
+  // कम्पोनेन्ट बन्द हुँदा क्यामेरा बन्द गर्ने
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleManualQr = () => {
+    if (qrManual.trim() === expectedQr) {
+      setQrVerified(true);
+      setQrError(null);
+    } else {
+      setQrVerified(false);
+      setQrError('गलत QR कोड! सही कोड प्रविष्ट गर्नुहोस्।');
+    }
+  };
+
   // Handle Check-in
   const handleCheckIn = async () => {
-    // एउटै कर्मचारीले दोहोरो हाजिरी लगाउन नपाउने
     if (alreadyCheckedIn) {
       alert('तपाईंले आजको हाजिरी पहिले नै लगाइसक्नुभएको छ।');
       return;
     }
-    // एउटै मोबाइलबाट अर्को कर्मचारीको हाजिरी लगाउन नपाउने
     if (deviceUsedByOther) {
       alert(`यो मोबाइलबाट आजको हाजिरी ${deviceOwnerName} ले लगाइसकेको छ। एउटा मोबाइलबाट एक दिनमा एक जनाको मात्र हाजिरी लाग्छ। कृपया आफ्नै मोबाइल प्रयोग गर्नुहोस्।`);
       return;
     }
-    // हाजिरी लगाउने बेलामा फेरि ताजा GPS लिएर ५० मिटर जाँच (पुरानो/stale स्थानबाट हाजिरी नलाग्ने)
+
+    // ---- दोस्रो तहको प्रमाणीकरण (PIN / QR) ----
+    if (verificationType === 'pin') {
+      if (Date.now() < pinLockedUntil) {
+        const secs = Math.ceil((pinLockedUntil - Date.now()) / 1000);
+        alert(`धेरै गलत प्रयास भयो। ${secs} सेकेन्डपछि पुनः प्रयास गर्नुहोस्।`);
+        return;
+      }
+      const requiredPin = currentOfficer.pin;
+      if (!requiredPin) {
+        alert('तपाईंको हाजिरी PIN सेट गरिएको छैन। कृपया Admin सँग सम्पर्क गरी PIN सेट गर्नुहोस्।');
+        return;
+      }
+      if (!/^\d{4}$/.test(inputPin) || inputPin !== String(requiredPin)) {
+        const attempts = pinAttempts + 1;
+        if (attempts >= PIN_MAX_ATTEMPTS) {
+          setPinAttempts(0);
+          setPinLockedUntil(Date.now() + PIN_LOCK_MS);
+          alert('५ पटक गलत PIN प्रविष्ट भयो। १ मिनेटका लागि लक गरियो।');
+        } else {
+          setPinAttempts(attempts);
+          alert(`गलत कर्मचारी पिन (PIN)! बाँकी प्रयास: ${PIN_MAX_ATTEMPTS - attempts}`);
+        }
+        return;
+      }
+      setPinAttempts(0);
+    } else {
+      if (!qrVerified) {
+        alert('कृपया पहिला गणको QR कोड स्क्यान गर्नुहोस्।');
+        return;
+      }
+    }
+
+    // ---- हाजिरी लगाउने बेलामा फेरि ताजा GPS ले ५० मिटर जाँच ----
     let coords = currentCoords;
     let dist = distanceMeters;
     try {
       const pos = await getFreshPosition();
+      if (Date.now() - pos.timestamp > MAX_POSITION_AGE_MS) {
+        alert('GPS स्थान पुरानो छ। पुनः रिफ्रेस गरेर प्रयास गर्नुहोस्।');
+        return;
+      }
       coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      dist = calculateDistanceMeters(
-        coords.lat,
-        coords.lng,
-        battalionConfig.centerCoords.lat,
-        battalionConfig.centerCoords.lng
+      dist = Math.round(
+        calculateDistanceMeters(
+          coords.lat,
+          coords.lng,
+          battalionConfig.centerCoords.lat,
+          battalionConfig.centerCoords.lng
+        )
       );
       setCurrentCoords(coords);
       setDistanceMeters(dist);
@@ -218,23 +372,13 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       return;
     }
 
-    if (verificationType === 'pin') {
-      const requiredPin = currentOfficer.pin || '1234';
-      if (inputPin !== requiredPin && inputPin !== '1234') {
-        alert('गलत कर्मचारी पिन (PIN)! कृपया सही ४ अंकको कर्मचारी हाजिरी पिन प्रविष्ट गर्नुहोस्।');
-        return;
-      }
-    } else {
-      if (!qrVerified) {
-        alert('कृपया पहिला गणको QR कोड स्क्यान गर्नुहोस्।');
-        return;
-      }
-    }
-
+    // ---- समय र ढिलो गणना (नेपाल समय अनुसार, ९:०० बजेदेखि मिनेट गणना) ----
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('ne-NP', { hour: '2-digit', minute: '2-digit' });
-    const isLate = now.getHours() >= 9 && now.getMinutes() > 0;
-    const lateMinutes = isLate ? (now.getHours() - 9) * 60 + now.getMinutes() : 0;
+    const timeStr = now.toLocaleTimeString('ne-NP', { hour: '2-digit', minute: '2-digit', timeZone: NEPAL_TZ });
+    const { h, m } = getNepalClock();
+    const minutesSinceMidnight = h * 60 + m;
+    const lateMinutes = Math.max(0, minutesSinceMidnight - DUTY_START_MINUTES);
+    const isLate = lateMinutes > 0;
 
     const newRecord: AttendanceRecord = {
       id: `att-${Date.now()}`,
@@ -251,13 +395,15 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       verificationMethod: verificationType === 'pin' ? 'GPS + PIN' : 'GPS + QR',
       isLate,
       lateMinutes,
-      remarks: `गण ५० मि. सिमाभित्र (${dist} मिटर) प्रमाणित`,
+      remarks: `गण ${battalionConfig.virtualBoundaryMeters} मि. सिमाभित्र (${dist} मिटर) प्रमाणित`,
     };
 
     onAddAttendanceRecord(newRecord);
     markDeviceAttendance(currentNepali.dateString, currentOfficer.id);
     setActionSuccessMsg(`सफल! आज ${currentNepali.dateString} को हाजिरी दर्ता भयो (${timeStr})।`);
     setInputPin('');
+    setQrVerified(false);
+    setQrManual('');
     setTimeout(() => setActionSuccessMsg(null), 5000);
   };
 
@@ -267,8 +413,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       alert('तपाईंले आजको हाजिरी लगाउनुभएको छैन।');
       return;
     }
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('ne-NP', { hour: '2-digit', minute: '2-digit' });
+    const timeStr = new Date().toLocaleTimeString('ne-NP', { hour: '2-digit', minute: '2-digit', timeZone: NEPAL_TZ });
     onUpdateAttendanceRecord(todayRecord.id, {
       checkOutTime: timeStr,
       remarks: `${todayRecord.remarks || ''} • ड्युटी समाप्त: ${timeStr}`,
@@ -277,65 +422,88 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     setTimeout(() => setActionSuccessMsg(null), 5000);
   };
 
-  // Generate monthly attendance matrix map: officerId -> { [dayNumber]: { status, time } }
+  // चयन गरिएको वर्ष/महिनाको मात्र हाजिरी: officerId -> { [day]: { status, time } }
   const monthlyMatrix = useMemo(() => {
-    const map: { [officerId: string]: { [day: number]: { status: string; time?: string } } } = {};
-    
-    // Seed with existing attendance records (चयन गरिएको वर्ष र महिनाको मात्र)
+    const map: { [officerId: string]: { [day: number]: { status: 'P' | 'L'; time?: string } } } = {};
     attendanceRecords.forEach((rec) => {
       const parsed = parseNepaliDateString(rec.date);
       if (!parsed) return;
       if (parsed.year !== selectedYear || parsed.month !== selectedMonthIndex + 1) return;
       if (!map[rec.officerId]) map[rec.officerId] = {};
       map[rec.officerId][parsed.day] = {
-        status: rec.status === 'उपस्थित' ? 'P' : rec.status === 'ढिलो' ? 'L' : 'P',
-        time: rec.checkInTime
+        status: rec.status === 'ढिलो' ? 'L' : 'P',
+        time: rec.checkInTime,
       };
     });
-
     return map;
   }, [attendanceRecords, selectedYear, selectedMonthIndex]);
 
-  // Determine accessible officers (Admin: all, Non-Admin: strictly currentOfficer only!)
+  // एउटा कर्मचारीको एक गतेको स्थिति:
+  //  P = उपस्थित, L = ढिलो, A = कार्यदिनमा हाजिर नगरेको (बितेको मिति), OFF = शनिबार, - = आउने/आजको (बाँकी)
+  const dayStatus = (officerId: string, day: number): DayStatus => {
+    const item = monthlyMatrix[officerId]?.[day];
+    if (item) return item.status;
+    if (getWeekdayOfBsDate(selectedYear, selectedMonthIndex, day) === 6) return 'OFF';
+    const key = selectedYear * 10000 + (selectedMonthIndex + 1) * 100 + day;
+    if (key < todayKey) return 'A';
+    return '-';
+  };
+
+  // Admin: सबै, अरू: आफ्नो मात्र
   const accessibleOfficers = useMemo(() => {
     const list = officers.length > 0 ? officers : [currentOfficer];
     if (!isAdmin) {
       return list.filter((o) => o.id === currentOfficer.id);
     }
-    return list.filter((o) => {
-      const matchSearch =
-        o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.computerCode.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchSearch;
-    });
+    const q = searchTerm.toLowerCase();
+    return list.filter(
+      (o) =>
+        o.name.toLowerCase().includes(q) ||
+        o.rank.toLowerCase().includes(q) ||
+        o.id.toLowerCase().includes(q) ||
+        (o.computerCode || '').toLowerCase().includes(q)
+    );
   }, [officers, currentOfficer, isAdmin, searchTerm]);
 
-  // Paginate officers to 4-5 per page so display is clean and compact
   const totalPages = Math.ceil(accessibleOfficers.length / pageSize) || 1;
   const paginatedOfficers = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return accessibleOfficers.slice(start, start + pageSize);
   }, [accessibleOfficers, currentPage, pageSize]);
 
+  // खोज वा सूची घट्दा पेज सीमाभन्दा बाहिर नजाओस्
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  // म्याट्रिक्सका पङ्क्ति (P / L / A को गणना सहित)
+  const matrixRows = useMemo(() => {
+    return paginatedOfficers.map((off) => {
+      let p = 0;
+      let l = 0;
+      let a = 0;
+      const cells = monthDays.map((day) => {
+        const s = dayStatus(off.id, day);
+        if (s === 'P') p++;
+        else if (s === 'L') l++;
+        else if (s === 'A') a++;
+        return { day, status: s, time: monthlyMatrix[off.id]?.[day]?.time };
+      });
+      return { off, cells, p, l, a };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedOfficers, monthDays, monthlyMatrix, selectedYear, selectedMonthIndex, todayKey]);
+
   // ---- दैनिक हाजिरी (चयन गरिएको मितिको) ----
-  const keyOfDate = (str: string): number => {
-    const p = parseNepaliDateString(str);
-    return p ? p.year * 10000 + p.month * 100 + p.day : 0;
-  };
   const effectiveDay = Math.min(selectedDay, totalDaysInMonth);
   const selectedKey = selectedYear * 10000 + (selectedMonthIndex + 1) * 100 + effectiveDay;
-  const todayKey = keyOfDate(currentNepali.dateString);
   const selectedWeekday = getWeekdayOfBsDate(selectedYear, selectedMonthIndex, effectiveDay);
 
-  // Admin ले सबैको, अरूले आफ्नो मात्र
   const dailyRecords = useMemo(() => {
     return attendanceRecords
       .filter((r) => keyOfDate(r.date) === selectedKey && (isAdmin || r.officerId === currentOfficer.id))
       .slice()
       .sort((x, y) => String(x.checkInTime || '').localeCompare(String(y.checkInTime || '')));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attendanceRecords, selectedKey, isAdmin, currentOfficer.id]);
 
   // Admin: त्यो दिन हाजिर नगर्ने कर्मचारी (शनिबार र आउने मिति बाहेक)
@@ -344,13 +512,12 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     return officers.filter(
       (o) => !attendanceRecords.some((r) => r.officerId === o.id && keyOfDate(r.date) === selectedKey)
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, officers, attendanceRecords, selectedKey, todayKey, selectedWeekday]);
 
   const dailyPresentCount = dailyRecords.filter((r) => r.status === 'उपस्थित').length;
   const dailyLateCount = dailyRecords.filter((r) => r.status === 'ढिलो').length;
 
-  // ---- Excel डाउनलोड: दैनिक वा मिति दायरा (आवश्यक परेको बेला, Admin मात्र) ----
+  // ---- Excel डाउनलोड: दैनिक वा मिति दायरा ----
   const handleExportLogExcel = () => {
     if (!isAdmin) {
       onRequireAdmin();
@@ -374,7 +541,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
           return k >= fromKey && k <= toKey;
         })
         .slice()
-        .sort((x, y) => keyOfDate(x.date) - keyOfDate(y.date) || String(x.checkInTime || '').localeCompare(String(y.checkInTime || '')));
+        .sort(
+          (x, y) =>
+            keyOfDate(x.date) - keyOfDate(y.date) ||
+            String(x.checkInTime || '').localeCompare(String(y.checkInTime || ''))
+        );
 
       const rows: { [key: string]: string | number }[] = inRange.map((r, i) => ({
         'क्र.सं.': i + 1,
@@ -433,6 +604,50 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     }
   };
 
+  // Excel: महिनाभरको म्याट्रिक्स (सबै कर्मचारी, खोजीबाट प्रभावित हुँदैन)
+  const handleExportExcel = () => {
+    if (!isAdmin) {
+      onRequireAdmin();
+      return;
+    }
+    try {
+      const allOfficers = officers.length > 0 ? officers : [currentOfficer];
+      const exportData = allOfficers.map((off, index) => {
+        const row: { [key: string]: string | number } = {
+          'क्र.सं.': index + 1,
+          'कम्प्युटर कोड': off.computerCode,
+          'नाम': off.name,
+          'दर्जा': off.rank,
+          'दरबन्दी': off.darbandi || battalionConfig.name,
+        };
+
+        let presentCount = 0;
+        let lateCount = 0;
+        let absentCount = 0;
+        monthDays.forEach((day) => {
+          const s = dayStatus(off.id, day);
+          if (s === 'P') presentCount++;
+          else if (s === 'L') lateCount++;
+          else if (s === 'A') absentCount++;
+          row[`${toNepaliNumber(day)} गते`] = s === 'OFF' ? 'शनि' : s;
+        });
+
+        row['जम्मा उपस्थित (दिन)'] = presentCount;
+        row['ढिलो (दिन)'] = lateCount;
+        row['अनुपस्थित (दिन)'] = absentCount;
+        return row;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedMonthName} हाजिरी`);
+      XLSX.writeFile(workbook, `APF_Attendance_${selectedYear}_${selectedMonthName}_Report.xlsx`);
+    } catch (err) {
+      console.error('Excel export error:', err);
+      alert('एक्सेल फाइल डाउनलोड गर्दा समस्या आयो।');
+    }
+  };
+
   // Excel बटनले चयन गरिएको प्रकार अनुसार डाउनलोड गर्छ
   const handleDownload = () => {
     if (!isAdmin) {
@@ -476,53 +691,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     );
   };
 
-  // Export Excel Report according to exact days of the Nepali month
-  const handleExportExcel = () => {
-    try {
-      const exportData = accessibleOfficers.map((off, index) => {
-        const offRecord = monthlyMatrix[off.id] || {};
-        const row: { [key: string]: string | number } = {
-          'क्र.सं.': index + 1,
-          'कम्प्युटर कोड': off.computerCode,
-          'नाम': off.name,
-          'दर्जा': off.rank,
-          'दरबन्दी': off.darbandi || battalionConfig.name,
-        };
-
-        let presentCount = 0;
-        let lateCount = 0;
-        let leaveCount = 0;
-        monthDays.forEach((day) => {
-          const item = offRecord[day];
-          const isSatDay = getWeekdayOfBsDate(selectedYear, selectedMonthIndex, day) === 6;
-          const val = item ? item.status : isSatDay ? 'शनि' : '-';
-          if (val === 'P') presentCount++;
-          if (val === 'L') lateCount++;
-          if (val === 'A') leaveCount++;
-          row[`${toNepaliNumber(day)} गते`] = val;
-        });
-
-        row['जम्मा उपस्थित (दिन)'] = presentCount;
-        row['ढिलो (दिन)'] = lateCount;
-        row['अनुपस्थित/विदा (दिन)'] = leaveCount;
-        return row;
-      });
-
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, `${selectedMonthName} हाजिरी`);
-
-      const filename = `APF_Attendance_${selectedYear}_${selectedMonthName}_Report.xlsx`;
-      XLSX.writeFile(workbook, filename);
-    } catch (err) {
-      console.error('Excel export error:', err);
-      alert('एक्सेल फाइल डाउनलोड गर्दा समस्या आयो।');
-    }
-  };
+  const pinLocked = Date.now() < pinLockedUntil;
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      
+
       {/* 1. Header & Geofence Status Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -530,11 +703,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <h2 className="text-lg sm:text-xl font-extrabold text-white">
-                गणको ५० मिटरभित्र आधारित डिजिटल हाजिरी प्रणाली
+                गणको {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटरभित्र आधारित डिजिटल हाजिरी प्रणाली
               </h2>
             </div>
             <p className="text-xs text-slate-400 max-w-2xl">
-              सशस्त्र प्रहरी गण नं. २ महाराजगञ्जको निश्चित GPS विन्दुबाट ५० मिटर भर्चुअल बाउन्ड्री (Geofence) भित्र प्रवेश गरेपछि मात्र सुरक्षित बायोमेट्रिक/PIN/QR सहित दुई तहको प्रमाणीकरणमा हाजिरी सक्रिय हुन्छ।
+              सशस्त्र प्रहरी गण नं. २ महाराजगञ्जको निश्चित GPS विन्दुबाट {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर भर्चुअल बाउन्ड्री (Geofence) भित्र प्रवेश गरेपछि मात्र PIN वा QR सहितको दुई तहको प्रमाणीकरणमा हाजिरी सक्रिय हुन्छ।
             </p>
           </div>
 
@@ -573,13 +746,15 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
       {/* 2. Geofence Boundary Check & Personal Check-In Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        
+
         {/* Left Column: GPS Geofence Radar */}
         <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-sm font-bold text-white">Geofence GPS दूरी स्थिति (५० मिटर सिमा)</h3>
+              <h3 className="text-sm font-bold text-white">
+                Geofence GPS दूरी स्थिति ({toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर सिमा)
+              </h3>
             </div>
             <button
               onClick={refreshLocation}
@@ -612,7 +787,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 ) : isWithinBoundary ? (
                   <span className="text-emerald-400 flex items-center justify-center gap-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    ५० मिटर सुरक्षा परिधिभित्र (हाजिरी योग्य)
+                    {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर सुरक्षा परिधिभित्र (हाजिरी योग्य)
                   </span>
                 ) : (
                   <span className="text-red-400 flex items-center justify-center gap-1">
@@ -628,7 +803,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
-            <span>वास्तविक GPS मात्र (५० मि. नियम कडा)</span>
+            <span>वास्तविक GPS मात्र ({toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मि. नियम कडा)</span>
             <span className={`px-2.5 py-1 rounded text-[11px] font-bold ${gpsFixed ? 'bg-emerald-900/70 text-emerald-200' : 'bg-red-900/80 text-red-200 border border-red-700'}`}>
               {gpsFixed ? `GPS प्राप्त${gpsAccuracy !== null ? ` (±${gpsAccuracy} मि.)` : ''}` : 'GPS छैन'}
             </span>
@@ -656,7 +831,10 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => setVerificationType('pin')}
+                onClick={() => {
+                  stopScanner();
+                  setVerificationType('pin');
+                }}
                 className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer border ${
                   verificationType === 'pin'
                     ? 'bg-blue-600 border-blue-400 text-white'
@@ -688,37 +866,88 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 </label>
                 <input
                   type="password"
+                  inputMode="numeric"
                   maxLength={4}
                   placeholder="••••"
                   value={inputPin}
-                  onChange={(e) => setInputPin(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono tracking-widest text-center"
+                  onChange={(e) => setInputPin(e.target.value.replace(/\D/g, ''))}
+                  disabled={pinLocked}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono tracking-widest text-center disabled:opacity-50"
                 />
                 <p className="text-[11px] text-slate-500">
                   * आफ्नो व्यक्तिगत कर्मचारी हाजिरी पिन प्रविष्ट गर्नुहोस्।
+                  {pinAttempts > 0 && ` (गलत प्रयास: ${pinAttempts}/${PIN_MAX_ATTEMPTS})`}
                 </p>
+                {!currentOfficer.pin && (
+                  <p className="text-[11px] text-amber-400">
+                    * तपाईंको PIN सेट छैन। Admin सँग सम्पर्क गर्नुहोस्।
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
                 <p className="text-xs text-slate-300">
                   गणको मुख्य गेटमा राखिएको आधिकारिक QR कोड स्क्यान गर्नुहोस्
                 </p>
-                <button
-                  onClick={() => {
-                    setQrScanning(true);
-                    setTimeout(() => {
-                      setQrScanning(false);
-                      setQrVerified(true);
-                    }, 600);
-                  }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    qrVerified 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700'
-                  }`}
-                >
-                  {qrScanning ? 'स्क्यान हुँदैछ...' : qrVerified ? '✓ QR कोड प्रमाणित भयो!' : 'QR स्क्यान सिमुलेट गर्नुहोस्'}
-                </button>
+
+                {qrScanning && (
+                  <div className="space-y-2">
+                    <video
+                      ref={videoRef}
+                      playsInline
+                      muted
+                      className="w-full max-h-48 rounded-lg border border-slate-700 bg-black object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={stopScanner}
+                      className="px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-red-300 border border-slate-700 cursor-pointer"
+                    >
+                      स्क्यान रोक्नुहोस्
+                    </button>
+                  </div>
+                )}
+
+                {!qrScanning && (
+                  <button
+                    type="button"
+                    onClick={startScanner}
+                    disabled={qrVerified}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      qrVerified
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700'
+                    }`}
+                  >
+                    {qrVerified ? '✓ QR कोड प्रमाणित भयो!' : 'क्यामेराबाट QR स्क्यान गर्नुहोस्'}
+                  </button>
+                )}
+
+                {!qrVerified && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="वा QR कोड म्यानुअल प्रविष्ट गर्नुहोस्"
+                      value={qrManual}
+                      onChange={(e) => setQrManual(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleManualQr}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+                    >
+                      जाँच
+                    </button>
+                  </div>
+                )}
+
+                {qrError && (
+                  <p className="text-[11px] text-red-300 flex items-start gap-1 text-left">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{qrError}</span>
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -770,11 +999,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
       {/* 3. सम्पूर्ण कर्मचारी हाजिरी विवरण तथा लग (Battalion Attendance Ledger) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-        
+
         {/* Top Header of Ledger */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Calendar className="w-5 h-5 text-amber-400" />
               <h3 className="text-sm font-bold text-white">
                 सम्पूर्ण कर्मचारी हाजिरी विवरण तथा लग (Battalion Attendance Ledger)
@@ -790,8 +1019,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              {isAdmin 
-                ? `नेपाली क्यालेन्डर अनुसार: ${selectedYear} ${selectedMonthName} (कुल ${toNepaliNumber(totalDaysInMonth)} गते) • प्रत्येक कर्मचारीको एउटै लाइनमा (प्रति पेज ${pageSize} जना)।` 
+              {isAdmin
+                ? `नेपाली क्यालेन्डर अनुसार: ${toNepaliNumber(selectedYear)} ${selectedMonthName} (कुल ${toNepaliNumber(totalDaysInMonth)} गते) • प्रत्येक कर्मचारीको एउटै लाइनमा (प्रति पेज ${pageSize} जना)।`
                 : `तपाईंको आफ्नो व्यक्तिगत महिनाभरको हाजिरी विवरण (${selectedMonthName} महिना - कुल ${toNepaliNumber(totalDaysInMonth)} गते)।`}
             </p>
           </div>
@@ -923,7 +1152,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
           )}
 
           {/* Legend */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-300 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 shrink-0">
             <span className="flex items-center gap-1">
               <span className="w-4 h-4 rounded bg-emerald-600 text-white font-bold inline-flex items-center justify-center text-[10px]">P</span>
               <span>उपस्थित</span>
@@ -934,16 +1163,16 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             </span>
             <span className="flex items-center gap-1">
               <span className="w-4 h-4 rounded bg-red-800 text-white font-bold inline-flex items-center justify-center text-[10px]">A</span>
-              <span>विदा/अनुपस्थित</span>
+              <span>अनुपस्थित (हाजिर नगरेको)</span>
             </span>
             <span className="flex items-center gap-1">
               <span className="w-4 h-4 rounded bg-slate-800 text-slate-400 font-bold inline-flex items-center justify-center text-[10px]">-</span>
-              <span>शनिवार/अन्य</span>
+              <span>शनिवार/बाँकी</span>
             </span>
           </div>
         </div>
 
-        {/* 4. The Monthly Attendance Matrix (ठ्याक्कै नेपाली क्यालेन्डर अनुसार १ देखि २९, ३०, ३१ वा ३२ गते सम्म) */}
+        {/* 4. Monthly Attendance Matrix */}
         {viewMode === 'monthly-matrix' ? (
           <div className="space-y-3">
             <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
@@ -957,8 +1186,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                       const isToday = day === currentNepali.day && selectedMonthIndex === (currentNepali.month - 1) && selectedYear === currentNepali.year;
                       const isSat = getWeekdayOfBsDate(selectedYear, selectedMonthIndex, day) === 6;
                       return (
-                        <th 
-                          key={day} 
+                        <th
+                          key={day}
                           className={`px-1.5 py-2 text-center font-mono min-w-[28px] border-r border-slate-800/60 ${
                             isToday ? 'bg-blue-900/60 text-white font-bold' : isSat ? 'text-red-400 bg-slate-950/40' : ''
                           }`}
@@ -968,96 +1197,68 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                         </th>
                       );
                     })}
-                    <th className="px-2 py-2 text-center text-emerald-400 font-bold min-w-[45px]" title="कुल उपस्थित दिन">
+                    <th className="px-2 py-2 text-center text-emerald-400 font-bold min-w-[40px]" title="कुल उपस्थित दिन">
                       P
                     </th>
-                    <th className="px-2 py-2 text-center text-amber-400 font-bold min-w-[45px]" title="कुल ढिलो दिन">
+                    <th className="px-2 py-2 text-center text-amber-400 font-bold min-w-[40px]" title="कुल ढिलो दिन">
                       L
+                    </th>
+                    <th className="px-2 py-2 text-center text-red-400 font-bold min-w-[40px]" title="कुल अनुपस्थित दिन">
+                      A
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/70 font-mono text-[11px]">
-                  {paginatedOfficers.length > 0 ? (
-                    paginatedOfficers.map((off) => {
-                      const offRecord = monthlyMatrix[off.id] || {};
-                      let pCount = 0;
-                      let lCount = 0;
+                  {matrixRows.length > 0 ? (
+                    matrixRows.map(({ off, cells, p, l, a }) => (
+                      <tr key={off.id} className="hover:bg-slate-900/60 transition group">
+                        <td className="px-3 py-2.5 font-sans sticky left-0 z-10 bg-slate-950 group-hover:bg-slate-900/90 border-r border-slate-800">
+                          <div className="font-bold text-white text-xs truncate max-w-[170px]" title={off.name}>
+                            {off.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[170px]">
+                            {off.rank} • {off.computerCode || off.id}
+                          </div>
+                        </td>
 
-                      return (
-                        <tr key={off.id} className="hover:bg-slate-900/60 transition group">
-                          {/* Fixed Name & Rank column */}
-                          <td className="px-3 py-2.5 font-sans sticky left-0 z-10 bg-slate-950 group-hover:bg-slate-900/90 border-r border-slate-800">
-                            <div className="font-bold text-white text-xs truncate max-w-[170px]" title={off.name}>
-                              {off.name}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate max-w-[170px]">
-                              {off.rank} • {off.computerCode || off.id}
-                            </div>
-                          </td>
+                        {cells.map(({ day, status, time }) => {
+                          const isToday =
+                            selectedMonthIndex === (currentNepali.month - 1) &&
+                            selectedYear === currentNepali.year &&
+                            day === currentNepali.day;
+                          return (
+                            <td
+                              key={day}
+                              className={`px-1 py-1.5 text-center border-r border-slate-800/40 text-[10px] ${
+                                isToday ? 'bg-blue-950/40 font-bold' : ''
+                              }`}
+                              title={`${off.name}: ${day} गते ${time || status}`}
+                            >
+                              {status === 'P' && (
+                                <span className="w-5 h-5 rounded bg-emerald-600/90 text-white font-bold inline-flex items-center justify-center">P</span>
+                              )}
+                              {status === 'L' && (
+                                <span className="w-5 h-5 rounded bg-amber-600 text-white font-bold inline-flex items-center justify-center">L</span>
+                              )}
+                              {status === 'A' && (
+                                <span className="w-5 h-5 rounded bg-red-800 text-white font-bold inline-flex items-center justify-center">A</span>
+                              )}
+                              {status === 'OFF' && (
+                                <span className="text-red-400/80 text-[9px] font-sans">शनि</span>
+                              )}
+                              {status === '-' && <span className="text-slate-600">-</span>}
+                            </td>
+                          );
+                        })}
 
-                          {/* Dynamic 1 to totalDaysInMonth Columns on ONE Single Line */}
-                          {monthDays.map((day) => {
-                            const isCurrentMonth = selectedMonthIndex === (currentNepali.month - 1) && selectedYear === currentNepali.year;
-                            const isToday = isCurrentMonth && day === currentNepali.day;
-                            const item = offRecord[day];
-                            const isSatDay = getWeekdayOfBsDate(selectedYear, selectedMonthIndex, day) === 6;
-                            const status = item ? item.status : isSatDay ? 'OFF' : '-';
-                            
-                            if (status === 'P') pCount++;
-                            if (status === 'L') lCount++;
-
-                            return (
-                              <td 
-                                key={day} 
-                                className={`px-1 py-1.5 text-center border-r border-slate-800/40 text-[10px] ${
-                                  isToday ? 'bg-blue-950/40 font-bold' : ''
-                                }`}
-                                title={`${off.name}: ${day} गते ${item?.time || status}`}
-                              >
-                                {status === 'P' && (
-                                  <span className="w-5 h-5 rounded bg-emerald-600/90 text-white font-bold inline-flex items-center justify-center">
-                                    P
-                                  </span>
-                                )}
-                                {status === 'L' && (
-                                  <span className="w-5 h-5 rounded bg-amber-600 text-white font-bold inline-flex items-center justify-center">
-                                    L
-                                  </span>
-                                )}
-                                {status === 'A' && (
-                                  <span className="w-5 h-5 rounded bg-red-800 text-white font-bold inline-flex items-center justify-center">
-                                    A
-                                  </span>
-                                )}
-                                {status === 'OFF' && (
-                                  <span className="text-red-400/80 text-[9px] font-sans">
-                                    शनि
-                                  </span>
-                                )}
-                                {status === '-' && (
-                                  <span className="text-slate-600">
-                                    -
-                                  </span>
-                                )}
-                              </td>
-                            );
-                          })}
-
-                          {/* Total Present Days */}
-                          <td className="px-2 py-2 text-center font-bold text-emerald-400 bg-emerald-950/20">
-                            {pCount}
-                          </td>
-
-                          {/* Total Late Days */}
-                          <td className="px-2 py-2 text-center font-bold text-amber-400 bg-amber-950/20">
-                            {lCount}
-                          </td>
-                        </tr>
-                      );
-                    })
+                        <td className="px-2 py-2 text-center font-bold text-emerald-400 bg-emerald-950/20">{p}</td>
+                        <td className="px-2 py-2 text-center font-bold text-amber-400 bg-amber-950/20">{l}</td>
+                        <td className="px-2 py-2 text-center font-bold text-red-400 bg-red-950/20">{a}</td>
+                      </tr>
+                    ))
                   ) : (
                     <tr>
-                      <td colSpan={totalDaysInMonth + 3} className="px-4 py-8 text-center text-slate-500 font-sans">
+                      <td colSpan={totalDaysInMonth + 4} className="px-4 py-8 text-center text-slate-500 font-sans">
                         कुनै पनि कर्मचारीको हाजिरी विवरण फेला परेन।
                       </td>
                     </tr>
@@ -1066,11 +1267,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
               </table>
             </div>
 
-            {/* Pagination Controls (४-५ जना मात्र प्रति पेज) */}
+            {/* Pagination Controls */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 pt-1">
               <div>
-                देखाउँदै: <strong>{paginatedOfficers.length}</strong> / <strong>{accessibleOfficers.length}</strong> जना 
-                (प्रति पेज {pageSize} जना - सफा र चिटिक्क दृश्य)
+                देखाउँदै: <strong>{paginatedOfficers.length}</strong> / <strong>{accessibleOfficers.length}</strong> जना
+                (प्रति पेज {pageSize} जना)
               </div>
 
               {totalPages > 1 && (
@@ -1101,7 +1302,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             </div>
           </div>
         ) : (
-          /* दैनिक हाजिरी: चयन गरिएको गतेको (Admin ले सबैको, अरूले आफ्नो मात्र) */
+          /* दैनिक हाजिरी */
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
@@ -1162,7 +1363,12 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                         <div className="text-[10px] text-slate-400">{r.officerRank} • {r.officerId}</div>
                       </td>
                       <td className="px-3 py-3 text-slate-300 font-sans">{r.date}</td>
-                      <td className="px-3 py-3 font-bold text-emerald-400">{r.checkInTime}</td>
+                      <td className="px-3 py-3 font-bold text-emerald-400">
+                        {r.checkInTime}
+                        {r.isLate && r.lateMinutes ? (
+                          <span className="ml-1 text-[10px] font-normal text-amber-400">(+{r.lateMinutes} मि.)</span>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-3 font-bold text-amber-400">{r.checkOutTime || '—'}</td>
                       <td className="px-3 py-3 text-slate-300">{r.distanceFromBattalionMeters} m</td>
                       <td className="px-3 py-3 font-sans text-slate-300">{r.verificationMethod}</td>
