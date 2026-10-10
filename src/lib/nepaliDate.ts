@@ -33,28 +33,94 @@ export function getDaysInNepaliMonth(year: number = 2083, monthIndex: number = 5
   return days;
 }
 
-// हालको नेपाली वर्ष, महिना र गते निकाल्ने
-export function getCurrentNepaliDate(): { 
+// मिति देखाउनका लागि महिनाका छोटा नाम (असोज = आश्विन)
+export const NEPALI_MONTHS_DISPLAY = [
+  'बैशाख', 'जेठ', 'असार', 'साउन', 'भदौ', 'आश्विन',
+  'कार्तिक', 'मंसिर', 'पुस', 'माघ', 'फागुन', 'चैत'
+];
+
+export const NEPALI_WEEKDAYS = [
+  'आइतवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'बिहीवार', 'शुक्रवार', 'शनिवार'
+];
+
+// तालिकामा भएका वर्ष मात्र प्रयोग गर्ने (नभए नजिकको वर्षको ढाँचा)
+function getBsYearData(year: number): number[] {
+  if (BS_MONTH_DAYS[year]) return BS_MONTH_DAYS[year];
+  const years = Object.keys(BS_MONTH_DAYS).map(Number);
+  return BS_MONTH_DAYS[year < years[0] ? years[0] : years[years.length - 1]];
+}
+
+// आधार मिति: वि.सं. २०८३ बैशाख १ = २०२६ अप्रिल १४ (ई.सं.)
+const BS_ANCHOR_YEAR = 2083;
+const BS_ANCHOR_UTC = Date.UTC(2026, 3, 14);
+const NEPAL_OFFSET_MS = (5 * 60 + 45) * 60 * 1000; // नेपाल समय UTC+५:४५
+
+const pad2 = (n: number) => (n < 10 ? '०' + toNepaliNumber(n) : toNepaliNumber(n));
+
+// समय नेपालको घडी अनुसार (फोनको टाइमजोन जे भए पनि)
+export function getNepaliTimeString(now: Date = new Date()): string {
+  const np = new Date(now.getTime() + NEPAL_OFFSET_MS);
+  const h24 = np.getUTCHours();
+  const m = np.getUTCMinutes();
+  const s = np.getUTCSeconds();
+  const period = h24 < 4 ? 'राति' : h24 < 12 ? 'बिहान' : h24 < 16 ? 'दिउँसो' : h24 < 19 ? 'साँझ' : 'राति';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${period} ${pad2(h12)}:${pad2(m)}:${pad2(s)}`;
+}
+
+// हालको नेपाली वर्ष, महिना र गते स्वचालित रूपमा निकाल्ने (नेपाल समय अनुसार)
+export function getCurrentNepaliDate(now: Date = new Date()): { 
   year: number; 
   month: number; 
   day: number; 
   dateString: string; 
   monthName: string;
   totalDaysInMonth: number;
+  weekdayName: string;
+  fullText: string;
+  timeString: string;
 } {
-  const year = 2083;
-  const month = 6; // असोज (आश्विन)
-  const day = 14;
-  const monthIndex = month - 1; // 5
+  const np = new Date(now.getTime() + NEPAL_OFFSET_MS);
+  const todayUtc = Date.UTC(np.getUTCFullYear(), np.getUTCMonth(), np.getUTCDate());
+  let diff = Math.round((todayUtc - BS_ANCHOR_UTC) / 86400000); // आधार मितिदेखि बितेका दिन
+
+  let year = BS_ANCHOR_YEAR;
+  let monthIndex = 0;
+  let day = 1;
+
+  if (diff >= 0) {
+    while (true) {
+      const md = getBsYearData(year)[monthIndex];
+      if (diff < md - (day - 1)) { day += diff; break; }
+      diff -= md - (day - 1);
+      day = 1;
+      monthIndex++;
+      if (monthIndex === 12) { monthIndex = 0; year++; }
+    }
+  } else {
+    while (diff < 0) {
+      if (day + diff >= 1) { day += diff; diff = 0; break; }
+      diff += day;
+      monthIndex--;
+      if (monthIndex < 0) { monthIndex = 11; year--; }
+      day = getBsYearData(year)[monthIndex];
+    }
+  }
+
+  const month = monthIndex + 1;
   const totalDaysInMonth = getDaysInNepaliMonth(year, monthIndex);
+  const weekdayName = NEPALI_WEEKDAYS[np.getUTCDay()];
 
   return {
     year,
     month,
     day,
-    dateString: `२०८३-०६-${day < 10 ? '०' + day : toNepaliNumber(day)}`,
+    dateString: `${toNepaliNumber(year)}-${pad2(month)}-${pad2(day)}`,
     monthName: NEPALI_MONTHS[monthIndex],
-    totalDaysInMonth
+    totalDaysInMonth,
+    weekdayName,
+    fullText: `${toNepaliNumber(year)} ${NEPALI_MONTHS_DISPLAY[monthIndex]} ${toNepaliNumber(day)} गते, ${weekdayName}`,
+    timeString: getNepaliTimeString(now),
   };
 }
 
