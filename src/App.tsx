@@ -55,6 +55,17 @@ import { DigitalLibraryTab } from './components/tabs/DigitalLibraryTab';
 import { getCurrentNepaliDate } from './lib/nepaliDate';
 import { useSheetSync } from './lib/sheetSync';
 
+// फुटरको लाइभ नेपाली मिति र समय (हरेक सेकेन्ड आफैँ अपडेट हुन्छ; बाँकी एप पुनः रेन्डर हुँदैन)
+function NepaliClock() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const d = getCurrentNepaliDate();
+  return <>{d.fullText.replace(/^(\S+) /, '$1 साल ')} • {d.timeString}</>;
+}
+
 export default function App() {
   // 1. Core State
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -569,7 +580,7 @@ export default function App() {
           </div>
 
           <div className="bg-blue-600 text-white font-bold px-3 py-1 rounded-md shadow text-xs">
-            {(() => { const d: any = getCurrentNepaliDate(); const t = typeof d === 'string' ? d : (d?.fullText ?? d?.dateString ?? ''); return String(t).replace(/^(\S+) /, '$1 साल '); })()}
+            <NepaliClock />
           </div>
         </div>
       </footer>
