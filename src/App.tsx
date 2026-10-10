@@ -55,7 +55,7 @@ import { DigitalLibraryTab } from './components/tabs/DigitalLibraryTab';
 import { getCurrentNepaliDate } from './lib/nepaliDate';
 import { useSheetSync } from './lib/sheetSync';
 
-// फुटरको लाइभ नेपाली मिति र समय (हरेक सेकेन्ड आफैँ अपडेट हुन्छ)
+// फुटरको लाइभ नेपाली मिति र समय
 function NepaliClock() {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -70,11 +70,11 @@ export default function App() {
   // 1. Core State
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   
-  // Login / Logout State (नयाँ थपिएको)
+  // Login / Computer Code Login State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('apf_gun2_is_logged_in') === 'true';
   });
-  const [loginPin, setLoginPin] = useState<string>('');
+  const [computerCodeInput, setComputerCodeInput] = useState<string>('');
   const [loginError, setLoginError] = useState<string>('');
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
@@ -251,18 +251,32 @@ export default function App() {
     saveAdminMode(true);
   };
 
-  // Login / Logout Handlers (नयाँ थपिएको)
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Computer Code Login Handler (कम्प्युटर कोडबाट लगइन गर्ने लजिक)
+  const handleComputerCodeLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // यहाँ पिन प्रमाणीकरण (तपाईंको आवश्यकता अनुसार पिन '1234' वा अन्य राख्न सक्नुहुन्छ)
-    if (loginPin === '1234' || loginPin.length >= 4) {
+    const cleanCode = computerCodeInput.trim();
+    if (!cleanCode) {
+      setLoginError('कृपया आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
+      return;
+    }
+
+    // Admin ले राखेका कर्मचारी सूचीमा कम्प्युटर कोड चेक गर्ने (code, id वा badgeNumber सँग)
+    const matchedOfficer = officers.find(
+      (o) =>
+        (o.code && o.code.trim().toLowerCase() === cleanCode.toLowerCase()) ||
+        (o.badgeNumber && o.badgeNumber.trim().toLowerCase() === cleanCode.toLowerCase()) ||
+        o.id === cleanCode
+    );
+
+    if (matchedOfficer) {
+      handleSelectOfficer(matchedOfficer.id);
       setIsLoggedIn(true);
       localStorage.setItem('apf_gun2_is_logged_in', 'true');
       setShowLoginModal(false);
-      setLoginPin('');
+      setComputerCodeInput('');
       setLoginError('');
     } else {
-      setLoginError('कृपया सही ४ अंकको पिन (Pin) प्रविष्ट गर्नुहोस्!');
+      setLoginError('उक्त कम्प्युटर कोड प्रणालीमा फेला परेन! कृपयाAdmin सँग सम्पर्क गर्नुहोस्।');
     }
   };
 
@@ -278,7 +292,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       
-      {/* 1. Top Header */}
+      {/* 1. Top Header (सार्न नपर्ने गरी एकै नजरमा देखिने चिटिक्कको मेनु) */}
       <Header
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
@@ -301,9 +315,9 @@ export default function App() {
         }}
       />
 
-      {/* 2. Device Identity Bar & Login/Logout Action Bar (चिटिक्क मिलेको डिजाइन) */}
-      <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 shadow-inner">
-        <div className="flex-1 min-w-[280px]">
+      {/* 2. Device Identity Bar & Login/Logout Control (Compact layout) */}
+      <div className="bg-slate-900 border-b border-slate-800 px-2 sm:px-6 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-inner">
+        <div className="w-full sm:w-auto flex-1">
           <IdentityBar
             currentOfficer={currentOfficer}
             onOpenSwitchModal={() => setIsIdentityModalOpen(true)}
@@ -311,31 +325,28 @@ export default function App() {
           />
         </div>
 
-        {/* लगइन / लगआउट बटन कन्ट्रोल */}
-        <div className="flex items-center gap-2">
+        {/* लगइन / लगआउट स्थिति बटन */}
+        <div className="flex items-center gap-2 shrink-0">
           {isLoggedIn ? (
-            <div className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs text-emerald-300 font-medium hidden sm:inline">लगइन सक्रिय</span>
+            <div className="flex items-center gap-2 bg-emerald-950/80 border border-emerald-500/40 px-2.5 py-1 rounded-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[11px] text-emerald-300 font-semibold">{currentOfficer.rank} {currentOfficer.name} (लगइन)</span>
               <button
                 onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1 rounded shadow transition flex items-center gap-1"
+                className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-0.5 rounded transition flex items-center gap-1 ml-1"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
                 लगआउट
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow transition flex items-center gap-1.5"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
-              कर्मचारी लगइन (Login)
+              कम्प्युटर कोड लगइन
             </button>
           )}
         </div>
@@ -347,7 +358,7 @@ export default function App() {
           enabled={isMobileView}
           onClose={() => setIsMobileView(false)}
         >
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5">
+          <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4">
             
             {activeTab === 'home' && (
               <HomeTab
@@ -523,7 +534,7 @@ export default function App() {
       </main>
 
       {/* 4. Bottom Right Live Nepali Date Bar */}
-      <footer className="bg-slate-900/90 border-t border-slate-800 text-xs text-slate-400 py-2.5 px-4 sticky bottom-0 z-30 backdrop-blur-md">
+      <footer className="bg-slate-900/90 border-t border-slate-800 text-xs text-slate-400 py-2 px-4 sticky bottom-0 z-30 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-400 text-[11px]">
             <span>{battalionConfig.name}</span>
@@ -531,7 +542,7 @@ export default function App() {
             <span className="text-emerald-400 font-semibold">५० मिटर Geofence डिजिटल हाजिरी तथा परिपत्र सेवा</span>
           </div>
 
-          <div className="bg-blue-600 text-white font-bold px-3 py-1 rounded-md shadow text-xs">
+          <div className="bg-blue-600 text-white font-bold px-2.5 py-0.5 rounded shadow text-xs">
             <NepaliClock />
           </div>
         </div>
@@ -540,16 +551,16 @@ export default function App() {
       {/* Offline Toast Indicator */}
       <OfflineIndicator />
 
-      {/* 5. Login Modal (लगइन गर्नुपर्ने पपअप विन्डो) */}
+      {/* 5. Computer Code Login Modal (कम्प्युटर कोड हाल्ने पपअप) */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2">
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4" />
                 </svg>
-                कर्मचारी सुरक्षित लगइन
+                प्रहरी कर्मचारी लगइन (कम्प्युटर कोड)
               </h3>
               <button 
                 onClick={() => setShowLoginModal(false)}
@@ -559,37 +570,36 @@ export default function App() {
               </button>
             </div>
 
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <form onSubmit={handleComputerCodeLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  तपाईंको ४ अंकको सुरक्षा पिन (PIN) प्रविष्ट गर्नुहोस्:
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  आफ्नो कम्प्युटर कोड (Computer Code) टाइप गर्नुहोस्:
                 </label>
                 <input
-                  type="password"
-                  maxLength={4}
-                  value={loginPin}
-                  onChange={(e) => setLoginPin(e.target.value)}
-                  placeholder="••••"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg tracking-widest text-white focus:outline-none focus:border-blue-500"
+                  type="text"
+                  value={computerCodeInput}
+                  onChange={(e) => setComputerCodeInput(e.target.value)}
+                  placeholder="उदा: 489201"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg font-mono text-white focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
               </div>
 
               {loginError && (
-                <p className="text-xs text-red-400 text-center font-medium">{loginError}</p>
+                <p className="text-xs text-red-400 text-center font-medium leading-relaxed">{loginError}</p>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowLoginModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-semibold transition"
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-xs font-bold transition"
                 >
                   रद्द गर्नुहोस्
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-semibold transition shadow-lg"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-xs font-bold transition shadow-lg"
                 >
                   लगइन गर्नुहोस्
                 </button>
