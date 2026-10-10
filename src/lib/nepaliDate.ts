@@ -18,9 +18,9 @@ export function toNepaliNumber(num: number | string): string {
 // बैशाख देखि चैत सम्मका १२ महिनाका आधिकारिक दिनहरू
 export const BS_MONTH_DAYS: { [year: number]: number[] } = {
   2080: [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30],
-  2081: [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30],
+  2081: [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31],
   2082: [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30],
-  2083: [31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 31],
+  2083: [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30],
   2084: [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30],
   2085: [31, 32, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30],
 };
@@ -127,4 +127,37 @@ export function getCurrentNepaliDate(now: Date = new Date()): {
 // नेपाली महिना अनुसार ठ्याक्कै १ देखि (२९/३०/३१/३२) गते सम्मका दिनहरूको एरे
 export function getNepaliDaysOfMonth(totalDays: number): number[] {
   return Array.from({ length: totalDays }, (_, i) => i + 1);
+}
+
+// वि.सं. मितिबाट हप्ताको वार निकाल्ने (० = आइतवार ... ६ = शनिवार)
+export function getWeekdayOfBsDate(year: number, monthIndex: number, day: number): number {
+  let offset = 0;
+  if (year >= BS_ANCHOR_YEAR) {
+    for (let y = BS_ANCHOR_YEAR; y < year; y++) {
+      offset += getBsYearData(y).reduce((a, b) => a + b, 0);
+    }
+  } else {
+    for (let y = year; y < BS_ANCHOR_YEAR; y++) {
+      offset -= getBsYearData(y).reduce((a, b) => a + b, 0);
+    }
+  }
+  const months = getBsYearData(year);
+  for (let m = 0; m < monthIndex; m++) offset += months[m];
+  offset += day - 1;
+  return new Date(BS_ANCHOR_UTC + offset * 86400000).getUTCDay();
+}
+
+// "२०८३-०६-१३" जस्ता मितिको अक्षर (नेपाली/अङ्ग्रेजी अंक दुवै) लाई {year, month, day} मा बदल्ने
+export function parseNepaliDateString(
+  str: string
+): { year: number; month: number; day: number } | null {
+  if (!str) return null;
+  const ascii = String(str).replace(/[०-९]/g, (d) => String('०१२३४५६७८९'.indexOf(d)));
+  const m = ascii.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 32) return null;
+  return { year, month, day };
 }
