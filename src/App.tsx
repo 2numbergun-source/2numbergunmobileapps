@@ -54,6 +54,7 @@ import { CalendarTab } from './components/tabs/CalendarTab';
 import { DigitalLibraryTab } from './components/tabs/DigitalLibraryTab';
 import { getCurrentNepaliDate } from './lib/nepaliDate';
 import { useSheetSync } from './lib/sheetSync';
+import { useSosSiren } from './lib/sosSiren';
 
 // फुटरको लाइभ नेपाली मिति र समय
 function NepaliClock() {
@@ -216,6 +217,14 @@ export default function App() {
     const { id: _id, ...rest } = r[0] as any;
     setBattalionConfig((prev) => ({ ...prev, ...rest }));
   });
+
+  // Sheet बाट आएका सक्रिय SOS सबै उपकरणमा देखाउने
+  useEffect(() => {
+    setActiveAlerts(alertLog.filter((a) => a.status !== 'समाधान भयो'));
+  }, [alertLog]);
+
+  // अर्को कर्मचारीको नयाँ SOS आउँदा साइरन, कम्पन र सूचना (एप खुला हुँदा मात्र)
+  useSosSiren(activeAlerts, currentOfficerId);
 
   const currentOfficer =
     officers.find((o) => o.id === currentOfficerId) || officers[0] || INITIAL_OFFICERS[0];
