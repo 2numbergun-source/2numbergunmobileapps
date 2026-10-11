@@ -234,13 +234,9 @@ export default function App() {
     duties.find((d) => d.officerId === currentOfficer.id) ||
     duties[0];
 
-  // मिति नआएको अवस्थामा गलत तुलना नहोस् भनी जाँच
-  const todayDateString = getCurrentNepaliDate()?.dateString;
-  const todayAttendance = todayDateString
-    ? attendanceRecords.find(
-        (r) => r.officerId === currentOfficer.id && r.date === todayDateString
-      )
-    : undefined;
+  const todayAttendance = attendanceRecords.find(
+    (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate()?.dateString
+  );
 
   const handleSelectOfficer = (id: string) => {
     setCurrentOfficerId(id);
@@ -314,8 +310,10 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     localStorage.removeItem('apf_gun2_is_logged_in');
-    setActiveTab('home');
   };
+
+  // पहुँच: कर्मचारी लगइन भएको वा Admin मोड सक्रिय भएको अवस्थामा सामग्री खुल्छ
+  const hasAccess = isLoggedIn || isAdmin;
 
   const unreadCircularCount = circulars.filter(
     (c) => !c.acknowledgedOfficerIds.includes(currentOfficer.id)
@@ -393,7 +391,7 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4">
 
             {/* लगइन नगरेको अवस्थामा सामग्री बन्द, लगइन गर्न भन्ने स्क्रिन */}
-            {!isLoggedIn && (
+            {!hasAccess && (
               <div className="flex items-center justify-center py-16">
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full text-center shadow-xl">
                   <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
@@ -415,7 +413,7 @@ export default function App() {
               </div>
             )}
             
-            {isLoggedIn && activeTab === 'home' && (
+            {hasAccess && activeTab === 'home' && (
               <HomeTab
                 currentOfficer={currentOfficer}
                 todayDuty={todayDuty}
@@ -438,7 +436,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'circulars' && (
+            {hasAccess && activeTab === 'circulars' && (
               <CircularsTab
                 circulars={circulars}
                 onAddCircular={(newCirc) => setCirculars((prev) => [newCirc, ...prev])}
@@ -459,7 +457,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'attendance' && (
+            {hasAccess && activeTab === 'attendance' && (
               <AttendanceTab
                 currentOfficer={currentOfficer}
                 officers={officers}
@@ -487,7 +485,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'gallery' && (
+            {hasAccess && activeTab === 'gallery' && (
               <GalleryTab
                 photos={galleryPhotos}
                 onAddPhoto={(newPhoto) => setGalleryPhotos((prev) => [newPhoto, ...prev])}
@@ -497,7 +495,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'notices' && (
+            {hasAccess && activeTab === 'notices' && (
               <NoticeBoardTab
                 notices={notices}
                 onAddNotice={(newNotice) => setNotices((prev) => [newNotice, ...prev])}
@@ -507,7 +505,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'personnel' && (
+            {hasAccess && activeTab === 'personnel' && (
               <PersonnelDirectoryTab
                 officers={officers}
                 onUpdateOfficers={(newOfficers) => setOfficers(newOfficers)}
@@ -518,7 +516,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'duty' && (
+            {hasAccess && activeTab === 'duty' && (
               <DutyRosterTab
                 duties={duties}
                 officers={officers}
@@ -531,7 +529,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'patrol' && (
+            {hasAccess && activeTab === 'patrol' && (
               <PatrolGpsTab
                 battalionConfig={battalionConfig}
                 duties={duties}
@@ -541,7 +539,7 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'commander' && (
+            {hasAccess && activeTab === 'commander' && (
               <CommanderPortalTab
                 activeAlerts={activeAlerts}
                 officers={officers}
@@ -563,11 +561,11 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'emergency' && (
+            {hasAccess && activeTab === 'emergency' && (
               <ContactsEmergencyTab />
             )}
 
-            {isLoggedIn && activeTab === 'office' && (
+            {hasAccess && activeTab === 'office' && (
               <OfficeProfileTab 
                 config={battalionConfig}
                 onUpdateConfig={setBattalionConfig}
@@ -576,11 +574,11 @@ export default function App() {
               />
             )}
 
-            {isLoggedIn && activeTab === 'calendar' && (
+            {hasAccess && activeTab === 'calendar' && (
               <CalendarTab />
             )}
 
-            {isLoggedIn && activeTab === 'library' && (
+            {hasAccess && activeTab === 'library' && (
               <DigitalLibraryTab />
             )}
 
