@@ -258,12 +258,14 @@ export const OfficerFormModal: React.FC<OfficerFormModalProps> = ({
                 <option value="प्रहरी उपरीक्षक (SP)">प्रहरी उपरीक्षक (SP)</option>
                 <option value="प्रहरी नायव उपरीक्षक (DSP)">प्रहरी नायव उपरीक्षक (DSP)</option>
                 <option value="प्रहरी निरीक्षक (Inspector)">प्रहरी निरीक्षक (Inspector)</option>
-                <option value="प्रनि — प्रहरी नायव निरीक्षक (SI)">प्रनि — प्रहरी नायव निरीक्षक (SI)</option>
+                  <option value="प्रहरी बरिष्ठ नायव निरीक्षक (SSI)">प्रहरी बरिष्ठ नायव निरीक्षक (SSI)</option>
+                <option value="प्रनानि — प्रहरी नायव निरीक्षक (SI)">प्रनि — प्रहरी नायव निरीक्षक (SI)</option>
                 <option value="प्र.स.नि. (ASI)">प्र.स.नि. (ASI)</option>
+                 <option value="प्रहरी बरिष्ठ हवल्दार (प्रबह)">प्रहरी बरिष्ठ हवल्दार (प्रबह)</option>
                 <option value="प्रहरी हवल्दार (प्रह)">प्रहरी हवल्दार (प्रह)</option>
-                <option value="प्रहरी सहायक हवल्दार (प्रसह्)">प्रहरी सहायक हवल्दार (प्रसह्)</option>
-                <option value="प्रहरी सहायक हवल्दार (महिला) (प्रसह्)">प्रहरी सहायक हवल्दार (महिला) (प्रसह्)</option>
-                <option value="प्रहरी जवान (प्रज)">प्रहरी जवान (प्रज)</option>
+                <option value="प्रहरी सहायक हवल्दार (प्रसह)">प्रहरी सहायक हवल्दार (प्रसह)</option>
+                             <option value="प्रहरी जवान (प्रज)">प्रहरी जवान (प्रज)</option>
+                      <option value="प्रहरी कार्यालय सहयोगी (प्रकास)">प्रहरी कार्यालय सहयोगी (प्रकास)</option>
               </select>
             </div>
 
