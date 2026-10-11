@@ -76,6 +76,7 @@ export default function App() {
     return localStorage.getItem('apf_gun2_is_logged_in') === 'true';
   });
   const [computerCodeInput, setComputerCodeInput] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState<string>('');
   const [loginError, setLoginError] = useState<string>('');
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
@@ -233,9 +234,13 @@ export default function App() {
     duties.find((d) => d.officerId === currentOfficer.id) ||
     duties[0];
 
-  const todayAttendance = attendanceRecords.find(
-    (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate()?.dateString
-  );
+  // मिति नआएको अवस्थामा गलत तुलना नहोस् भनी जाँच
+  const todayDateString = getCurrentNepaliDate()?.dateString;
+  const todayAttendance = todayDateString
+    ? attendanceRecords.find(
+        (r) => r.officerId === currentOfficer.id && r.date === todayDateString
+      )
+    : undefined;
 
   const handleSelectOfficer = (id: string) => {
     setCurrentOfficerId(id);
@@ -260,38 +265,56 @@ export default function App() {
     saveAdminMode(true);
   };
 
-  // Computer Code Login Handler (कम्प्युटर कोडबाट लगइन गर्ने लजिक)
+  // Computer Code Login Handler: युजर = कम्प्युटर कोड, पासवर्ड = कम्प्युटर कोड
   const handleComputerCodeLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = computerCodeInput.trim();
-    if (!cleanCode) {
-      setLoginError('कृपया आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
+    const cleanUser = computerCodeInput.trim();
+    const cleanPass = passwordInput.trim();
+    if (!cleanUser) {
+      setLoginError('कृपया युजरमा आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
+      return;
+    }
+    if (!cleanPass) {
+      setLoginError('कृपया पासवर्डमा पनि आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
       return;
     }
 
-    // Admin ले राखेका कर्मचारी सूचीमा कम्प्युटर कोड चेक गर्ने (code, id वा badgeNumber सँग)
+    // युजरबाट कर्मचारी खोज्ने (code, badgeNumber वा id सँग)
     const matchedOfficer = officers.find(
       (o) =>
-        (o.code && o.code.trim().toLowerCase() === cleanCode.toLowerCase()) ||
-        (o.badgeNumber && o.badgeNumber.trim().toLowerCase() === cleanCode.toLowerCase()) ||
-        o.id === cleanCode
+        (o.code && o.code.trim().toLowerCase() === cleanUser.toLowerCase()) ||
+        (o.badgeNumber && o.badgeNumber.trim().toLowerCase() === cleanUser.toLowerCase()) ||
+        o.id === cleanUser
     );
 
-    if (matchedOfficer) {
-      handleSelectOfficer(matchedOfficer.id);
-      setIsLoggedIn(true);
-      localStorage.setItem('apf_gun2_is_logged_in', 'true');
-      setShowLoginModal(false);
-      setComputerCodeInput('');
-      setLoginError('');
-    } else {
-      setLoginError('उक्त कम्प्युटर कोड प्रणालीमा फेला परेन! कृपयाAdmin सँग सम्पर्क गर्नुहोस्।');
+    if (!matchedOfficer) {
+      setLoginError('उक्त कम्प्युटर कोड प्रणालीमा फेला परेन! कृपया Admin सँग सम्पर्क गर्नुहोस्।');
+      return;
     }
+
+    // पासवर्ड पनि उही कर्मचारीको कम्प्युटर कोड हुनुपर्छ
+    const realCode = (matchedOfficer.code || matchedOfficer.badgeNumber || matchedOfficer.id || '')
+      .toString()
+      .trim()
+      .toLowerCase();
+    if (cleanPass.toLowerCase() !== realCode) {
+      setLoginError('पासवर्ड मिलेन! पासवर्डमा पनि उही कम्प्युटर कोड हाल्नुहोस्।');
+      return;
+    }
+
+    handleSelectOfficer(matchedOfficer.id);
+    setIsLoggedIn(true);
+    localStorage.setItem('apf_gun2_is_logged_in', 'true');
+    setShowLoginModal(false);
+    setComputerCodeInput('');
+    setPasswordInput('');
+    setLoginError('');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     localStorage.removeItem('apf_gun2_is_logged_in');
+    setActiveTab('home');
   };
 
   const unreadCircularCount = circulars.filter(
@@ -368,8 +391,31 @@ export default function App() {
           onClose={() => setIsMobileView(false)}
         >
           <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4">
+
+            {/* लगइन नगरेको अवस्थामा सामग्री बन्द, लगइन गर्न भन्ने स्क्रिन */}
+            {!isLoggedIn && (
+              <div className="flex items-center justify-center py-16">
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full text-center shadow-xl">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-base font-bold text-white mb-2">पहुँचका लागि लगइन आवश्यक छ</h2>
+                  <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+                    हाजिरी, परिपत्र, सूचना तथा अन्य सेवा हेर्न कृपया आफ्नो कम्प्युटर कोडबाट लगइन गर्नुहोस्।
+                  </p>
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow transition"
+                  >
+                    कम्प्युटर कोड लगइन
+                  </button>
+                </div>
+              </div>
+            )}
             
-            {activeTab === 'home' && (
+            {isLoggedIn && activeTab === 'home' && (
               <HomeTab
                 currentOfficer={currentOfficer}
                 todayDuty={todayDuty}
@@ -392,7 +438,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'circulars' && (
+            {isLoggedIn && activeTab === 'circulars' && (
               <CircularsTab
                 circulars={circulars}
                 onAddCircular={(newCirc) => setCirculars((prev) => [newCirc, ...prev])}
@@ -413,7 +459,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'attendance' && (
+            {isLoggedIn && activeTab === 'attendance' && (
               <AttendanceTab
                 currentOfficer={currentOfficer}
                 officers={officers}
@@ -441,7 +487,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'gallery' && (
+            {isLoggedIn && activeTab === 'gallery' && (
               <GalleryTab
                 photos={galleryPhotos}
                 onAddPhoto={(newPhoto) => setGalleryPhotos((prev) => [newPhoto, ...prev])}
@@ -451,7 +497,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'notices' && (
+            {isLoggedIn && activeTab === 'notices' && (
               <NoticeBoardTab
                 notices={notices}
                 onAddNotice={(newNotice) => setNotices((prev) => [newNotice, ...prev])}
@@ -461,7 +507,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'personnel' && (
+            {isLoggedIn && activeTab === 'personnel' && (
               <PersonnelDirectoryTab
                 officers={officers}
                 onUpdateOfficers={(newOfficers) => setOfficers(newOfficers)}
@@ -472,7 +518,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'duty' && (
+            {isLoggedIn && activeTab === 'duty' && (
               <DutyRosterTab
                 duties={duties}
                 officers={officers}
@@ -485,7 +531,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'patrol' && (
+            {isLoggedIn && activeTab === 'patrol' && (
               <PatrolGpsTab
                 battalionConfig={battalionConfig}
                 duties={duties}
@@ -495,7 +541,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'commander' && (
+            {isLoggedIn && activeTab === 'commander' && (
               <CommanderPortalTab
                 activeAlerts={activeAlerts}
                 officers={officers}
@@ -517,11 +563,11 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'emergency' && (
+            {isLoggedIn && activeTab === 'emergency' && (
               <ContactsEmergencyTab />
             )}
 
-            {activeTab === 'office' && (
+            {isLoggedIn && activeTab === 'office' && (
               <OfficeProfileTab 
                 config={battalionConfig}
                 onUpdateConfig={setBattalionConfig}
@@ -530,11 +576,11 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'calendar' && (
+            {isLoggedIn && activeTab === 'calendar' && (
               <CalendarTab />
             )}
 
-            {activeTab === 'library' && (
+            {isLoggedIn && activeTab === 'library' && (
               <DigitalLibraryTab />
             )}
 
@@ -569,7 +615,7 @@ export default function App() {
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4" />
                 </svg>
-                प्रहरी कर्मचारी लगइन (कम्प्युटर कोड)
+                प्रहरी कर्मचारी लगइन (युजर र पासवर्ड = कम्प्युटर कोड)
               </h3>
               <button 
                 onClick={() => setShowLoginModal(false)}
@@ -582,15 +628,30 @@ export default function App() {
             <form onSubmit={handleComputerCodeLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  आफ्नो कम्प्युटर कोड (Computer Code) टाइप गर्नुहोस्:
+                  युजर (User) — आफ्नो कम्प्युटर कोड:
                 </label>
                 <input
                   type="text"
                   value={computerCodeInput}
                   onChange={(e) => setComputerCodeInput(e.target.value)}
                   placeholder="उदा: 489201"
+                  autoComplete="username"
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg font-mono text-white focus:outline-none focus:border-blue-500"
                   autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  पासवर्ड (Password) — फेरि उही कम्प्युटर कोड:
+                </label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="उदा: 489201"
+                  autoComplete="current-password"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg font-mono text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
