@@ -275,11 +275,21 @@ export default function App() {
       return;
     }
 
-    // युजरबाट कर्मचारी खोज्ने (code, badgeNumber वा id सँग)
+    // Sheet बाट आउँदा कोडको वरिपरि " वा ' आएको हुन सक्छ — तुलना गर्दा हटाएर, ठूलो/सानो अक्षर बेवास्ता गरी
+    const norm = (v: unknown) =>
+      String(v ?? '')
+        .trim()
+        .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '')
+        .trim()
+        .toLowerCase();
+    const wanted = norm(cleanUser);
+
+    // युजरबाट कर्मचारी खोज्ने (कम्प्युटर कोड, B.G. कोड, संकेत नं. वा id सँग)
     const matchedOfficer = officers.find(
       (o) =>
-        (o.code && o.code.trim().toLowerCase() === cleanUser.toLowerCase()) ||
-        (o.badgeNumber && o.badgeNumber.trim().toLowerCase() === cleanUser.toLowerCase()) ||
+        (norm(o.computerCode) && norm(o.computerCode) === wanted) ||
+        (norm(o.bgCode) && norm(o.bgCode) === wanted) ||
+        (norm(o.sanketNo) && norm(o.sanketNo) === wanted) ||
         o.id === cleanUser
     );
 
@@ -289,11 +299,8 @@ export default function App() {
     }
 
     // पासवर्ड पनि उही कर्मचारीको कम्प्युटर कोड हुनुपर्छ
-    const realCode = (matchedOfficer.code || matchedOfficer.badgeNumber || matchedOfficer.id || '')
-      .toString()
-      .trim()
-      .toLowerCase();
-    if (cleanPass.toLowerCase() !== realCode) {
+    const realCode = norm(matchedOfficer.computerCode || matchedOfficer.bgCode || matchedOfficer.id);
+    if (norm(cleanPass) !== realCode) {
       setLoginError('पासवर्ड मिलेन! पासवर्डमा पनि उही कम्प्युटर कोड हाल्नुहोस्।');
       return;
     }
