@@ -435,6 +435,260 @@ export const OfficerFormModal: React.FC<OfficerFormModalProps> = ({
               />
             </div>
 
+
+            {/* सबै बाँकी विवरण (Sheet का सबै स्तम्भ अनुसार) */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">कार्यरत मिति</label>
+              <input
+                type="text"
+                value={formData.workingSinceDate && formData.workingSinceDate !== '—' ? formData.workingSinceDate : ''}
+                onChange={(e) => handleChange('workingSinceDate', e.target.value)}
+                placeholder="उदा: २०८०/०२/०१"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">भर्ना मिति</label>
+              <input
+                type="text"
+                value={formData.recruitmentDate && formData.recruitmentDate !== '—' ? formData.recruitmentDate : ''}
+                onChange={(e) => handleChange('recruitmentDate', e.target.value)}
+                placeholder="उदा: २०७०/०१/१२"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">सरुवा मिति</label>
+              <input
+                type="text"
+                value={formData.transferDate && formData.transferDate !== '—' ? formData.transferDate : ''}
+                onChange={(e) => handleChange('transferDate', e.target.value)}
+                placeholder="उदा: २०८१/०५/१०"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">बढुवा मिति</label>
+              <input
+                type="text"
+                value={formData.promotionDate && formData.promotionDate !== '—' ? formData.promotionDate : ''}
+                onChange={(e) => handleChange('promotionDate', e.target.value)}
+                placeholder="उदा: २०८२/०१/०१"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">साविक दरबन्दी</label>
+              <input
+                type="text"
+                value={formData.previousDarbandi && formData.previousDarbandi !== '—' ? formData.previousDarbandi : ''}
+                onChange={(e) => handleChange('previousDarbandi', e.target.value)}
+                placeholder="उदा: सशस्त्र प्रहरी गण नं. १"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">जन्म मिति</label>
+              <input
+                type="text"
+                value={formData.dateOfBirth && formData.dateOfBirth !== '—' ? formData.dateOfBirth : ''}
+                onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+                placeholder="उदा: २०५२/०१/०१"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">शैक्षिक योग्यता</label>
+              <input
+                type="text"
+                value={formData.education && formData.education !== '—' ? formData.education : ''}
+                onChange={(e) => handleChange('education', e.target.value)}
+                placeholder="उदा: +२ उत्तीर्ण"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">CUG भएका</label>
+              <input
+                type="text"
+                value={formData.cugNumber && formData.cugNumber !== '—' ? formData.cugNumber : ''}
+                onChange={(e) => handleChange('cugNumber', e.target.value)}
+                placeholder="उदा: ९८५१xxxxxx"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">आफन्तको नाम</label>
+              <input
+                type="text"
+                value={formData.relativeName && formData.relativeName !== '—' ? formData.relativeName : ''}
+                onChange={(e) => handleChange('relativeName', e.target.value)}
+                placeholder="आपतकालीन सम्पर्क व्यक्तिको नाम"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">CUG नभएका</label>
+              <input
+                type="text"
+                value={formData.nonCugNumber && formData.nonCugNumber !== '—' ? formData.nonCugNumber : ''}
+                onChange={(e) => handleChange('nonCugNumber', e.target.value)}
+                placeholder="उदा: ९८४१xxxxxx"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">ड्युटी गर्न सक्ने/नसक्ने</label>
+              <select
+                value={formData.dutyFitness || 'योग्य'}
+                onChange={(e) => handleChange('dutyFitness', e.target.value)}
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="योग्य">योग्य</option>
+                <option value="अयोग्य">अयोग्य</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">बुबाको नाम</label>
+              <input
+                type="text"
+                value={formData.fatherName && formData.fatherName !== '—' ? formData.fatherName : ''}
+                onChange={(e) => handleChange('fatherName', e.target.value)}
+                placeholder="उदा: राम बहादुर शर्मा"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">आमाको नाम</label>
+              <input
+                type="text"
+                value={formData.motherName && formData.motherName !== '—' ? formData.motherName : ''}
+                onChange={(e) => handleChange('motherName', e.target.value)}
+                placeholder="उदा: सीता शर्मा"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">नागरिकता नं.</label>
+              <input
+                type="text"
+                value={formData.citizenshipNo && formData.citizenshipNo !== '—' ? formData.citizenshipNo : ''}
+                onChange={(e) => handleChange('citizenshipNo', e.target.value)}
+                placeholder="उदा: ०१-०१-७५-१२३४५"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">सवारी साधन नं.</label>
+              <input
+                type="text"
+                value={formData.vehicleNumber && formData.vehicleNumber !== '—' ? formData.vehicleNumber : ''}
+                onChange={(e) => handleChange('vehicleNumber', e.target.value)}
+                placeholder="उदा: बा १ प १२३४"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">संचाअप नं.</label>
+              <input
+                type="text"
+                value={formData.sanchaApNo && formData.sanchaApNo !== '—' ? formData.sanchaApNo : ''}
+                onChange={(e) => handleChange('sanchaApNo', e.target.value)}
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Email</label>
+              <input
+                type="text"
+                value={formData.email && formData.email !== '—' ? formData.email : ''}
+                onChange={(e) => handleChange('email', e.target.value)}
+                placeholder="उदा: name@gmail.com"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">भएको/नभएको</label>
+              <input
+                type="text"
+                value={formData.propertyOrAsset && formData.propertyOrAsset !== '—' ? formData.propertyOrAsset : ''}
+                onChange={(e) => handleChange('propertyOrAsset', e.target.value)}
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">PAN</label>
+              <input
+                type="text"
+                value={formData.panNumber && formData.panNumber !== '—' ? formData.panNumber : ''}
+                onChange={(e) => handleChange('panNumber', e.target.value)}
+                placeholder="उदा: १२३४५६७८९"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">बैंक खाता</label>
+              <input
+                type="text"
+                value={formData.bankAccount && formData.bankAccount !== '—' ? formData.bankAccount : ''}
+                onChange={(e) => handleChange('bankAccount', e.target.value)}
+                placeholder="उदा: बैंकको नाम र खाता नं."
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">धर्म</label>
+              <input
+                type="text"
+                value={formData.religion && formData.religion !== '—' ? formData.religion : ''}
+                onChange={(e) => handleChange('religion', e.target.value)}
+                placeholder="उदा: हिन्दु"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">घरमूलीको नाम</label>
+              <input
+                type="text"
+                value={formData.headOfFamily && formData.headOfFamily !== '—' ? formData.headOfFamily : ''}
+                onChange={(e) => handleChange('headOfFamily', e.target.value)}
+                placeholder="उदा: घरमूलीको नाम"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">कै.</label>
+              <input
+                type="text"
+                value={formData.remarks && formData.remarks !== '—' ? formData.remarks : ''}
+                onChange={(e) => handleChange('remarks', e.target.value)}
+                placeholder="कैफियत"
+                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
           </div>
 
           <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-800">
