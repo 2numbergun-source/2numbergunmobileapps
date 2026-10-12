@@ -23,12 +23,17 @@ import {
   NoticeItem,
   BattalionConfig
 } from './types/police';
-import { getSavedOfficerId, saveOfficerId } from './data/deviceIdentity';
-import * as cloud from './lib/cloud';
+import { 
+  getSavedOfficerId, 
+  saveOfficerId, 
+  getSavedAdminMode, 
+  saveAdminMode 
+} from './data/deviceIdentity';
 
 import { Header, TabKey } from './components/Header';
 import { IdentityBar } from './components/IdentityBar';
 import { IdentitySelectModal } from './components/IdentitySelectModal';
+import { AdminUnlockModal } from './components/AdminUnlockModal';
 import { EmergencyAlertModal } from './components/EmergencyAlertModal';
 import { OfficerQrModal } from './components/OfficerQrModal';
 import { MobileFrame } from './components/MobileFrame';
@@ -66,6 +71,15 @@ export default function App() {
   // 1. Core State
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   
+  // Login / Computer Code Login State
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('apf_gun2_is_logged_in') === 'true';
+  });
+  const [computerCodeInput, setComputerCodeInput] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+
   // Officers
   const [officers, setOfficers] = useState<Officer[]>(() => {
     try {
@@ -75,19 +89,13 @@ export default function App() {
     return INITIAL_OFFICERS;
   });
 
-  // बाहिरको LoginGate बाट भएको लगइनको आधारमा पहिचान तथा Admin अवस्था तय हुन्छ
-  const loginSession: any = cloud.session();
-  const [selectedOfficerId, setSelectedOfficerId] = useState<string>(() =>
-    loginSession.role === 'officer' && loginSession.officerId ? loginSession.officerId : getSavedOfficerId()
-  );
-  // कर्मचारी लगइन भएको छ भने पहिचान सधैं उसकै कम्प्युटर कोडको कर्मचारी मात्र हुन्छ (बदल्न मिल्दैन)
-  const currentOfficerId: string =
-    loginSession.role === 'officer' && loginSession.officerId ? loginSession.officerId : selectedOfficerId;
-  const isAdmin: boolean = loginSession.role === 'admin';
+  const [currentOfficerId, setCurrentOfficerId] = useState<string>(() => getSavedOfficerId());
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => getSavedAdminMode());
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
 
   // Modals state
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isSosModalOpen, setIsSosModalOpen] = useState(false);
   const [isMyQrModalOpen, setIsMyQrModalOpen] = useState(false);
 
@@ -230,51 +238,93 @@ export default function App() {
     (r) => r.officerId === currentOfficer.id && r.date === getCurrentNepaliDate()?.dateString
   );
 
-  // पहिचान बदल्ने सुविधा Admin का लागि मात्र; कर्मचारीले अर्काको नाम चयन गर्न सक्दैन
   const handleSelectOfficer = (id: string) => {
-    if (!isAdmin) return;
-    setSelectedOfficerId(id);
+    setCurrentOfficerId(id);
     saveOfficerId(id);
   };
 
-  // नयाँ कर्मचारी थप्ने काम पनि Admin का लागि मात्र
   const handleAddNewOfficer = (newOfficer: Officer) => {
-    if (!isAdmin) return;
     setOfficers((prev) => [newOfficer, ...prev]);
   };
 
-  const handleOpenSwitchModal = () => {
-    if (!isAdmin) {
-      alert('पहिचान बदल्ने सुविधा Admin का लागि मात्र हो। तपाईं आफ्नै कम्प्युटर कोडबाट लगइन हुनुभएको छ।');
+  const handleToggleAdmin = () => {
+    if (isAdmin) {
+      setIsAdmin(false);
+      saveAdminMode(false);
+    } else {
+      setIsAdminModalOpen(true);
+    }
+  };
+
+  const handleAdminSuccess = () => {
+    setIsAdmin(true);
+    saveAdminMode(true);
+  };
+
+  // Computer Code Login Handler: युजर = कम्प्युटर कोड, पासवर्ड = कम्प्युटर कोड
+  const handleComputerCodeLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUser = computerCodeInput.trim();
+    const cleanPass = passwordInput.trim();
+    if (!cleanUser) {
+      setLoginError('कृपया युजरमा आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
       return;
     }
-    setIsIdentityModalOpen(true);
+    if (!cleanPass) {
+      setLoginError('कृपया पासवर्डमा पनि आफ्नो कम्प्युटर कोड प्रविष्ट गर्नुहोस्!');
+      return;
+    }
+
+    // Sheet बाट आउँदा कोडको वरिपरि " वा ' आएको हुन सक्छ — तुलना गर्दा हटाएर, ठूलो/सानो अक्षर बेवास्ता गरी
+    const norm = (v: unknown) =>
+      String(v ?? '')
+        // नेपाली अंक (०-९) लाई English अंक (0-9) बनाउने
+        .replace(/[०-९]/g, (d) => String('०१२३४५६७८९'.indexOf(d)))
+        // लुकेका खाली ठाउँ (zero-width / nbsp) र सबै स्पेस हटाउने
+        .replace(/[\u200B-\u200D\uFEFF\s]/g, '')
+        .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, '')
+        // Sheet ले 371209 लाई 371209.0 बनाएको भए ".0" हटाउने
+        .replace(/^(\d+)\.0+$/, '$1')
+        .toLowerCase();
+    const wanted = norm(cleanUser);
+
+    // युजरबाट कर्मचारी खोज्ने (कम्प्युटर कोड, B.G. कोड, संकेत नं. वा id सँग)
+    const matchedOfficer = officers.find(
+      (o) =>
+        (norm(o.computerCode) && norm(o.computerCode) === wanted) ||
+        (norm(o.bgCode) && norm(o.bgCode) === wanted) ||
+        (norm(o.sanketNo) && norm(o.sanketNo) === wanted) ||
+        o.id === cleanUser
+    );
+
+    if (!matchedOfficer) {
+      setLoginError('उक्त कम्प्युटर कोड प्रणालीमा फेला परेन! कृपया Admin सँग सम्पर्क गर्नुहोस्।');
+      return;
+    }
+
+    // पासवर्ड पनि उही कर्मचारीको कम्प्युटर कोड हुनुपर्छ
+    const realCode = norm(matchedOfficer.computerCode || matchedOfficer.bgCode || matchedOfficer.id);
+    if (norm(cleanPass) !== realCode) {
+      setLoginError('पासवर्ड मिलेन! पासवर्डमा पनि उही कम्प्युटर कोड हाल्नुहोस्।');
+      return;
+    }
+
+    handleSelectOfficer(matchedOfficer.id);
+    setIsLoggedIn(true);
+    localStorage.setItem('apf_gun2_is_logged_in', 'true');
+    setShowLoginModal(false);
+    setComputerCodeInput('');
+    setPasswordInput('');
+    setLoginError('');
   };
 
-  // Admin हक नभएको कर्मचारीले Admin-मात्र सुविधा थिच्दा सूचना
-  const requireAdmin = () => {
-    alert('यो सुविधा Admin लगइनबाट मात्र खुल्छ।');
-  };
-
-  const handleToggleAdmin = () => {
-    if (!isAdmin) requireAdmin();
-  };
-
-  // लगआउट: कर्मचारी र Admin दुवैका लागि
   const handleLogout = () => {
-    try { (cloud as any).logout?.(); } catch {}
-    try {
-      [localStorage, sessionStorage].forEach((st) => {
-        Object.keys(st)
-          .filter((k) => /token|session/i.test(k))
-          .forEach((k) => st.removeItem(k));
-      });
-      localStorage.removeItem('apf_gun2_admin_mode_active');
-      localStorage.removeItem('apf_gun2_saved_officer_id');
-      localStorage.removeItem('apf_gun2_is_logged_in');
-    } catch {}
-    window.location.reload();
+    setIsLoggedIn(false);
+    localStorage.removeItem('apf_gun2_is_logged_in');
   };
+
+  // पहुँच: कर्मचारी लगइन भएको वा Admin मोड सक्रिय भएको अवस्थामा सामग्री खुल्छ
+  const hasAccess = isLoggedIn || isAdmin;
 
   const unreadCircularCount = circulars.filter(
     (c) => !c.acknowledgedOfficerIds.includes(currentOfficer.id)
@@ -311,25 +361,35 @@ export default function App() {
         <div className="w-full sm:w-auto flex-1">
           <IdentityBar
             currentOfficer={currentOfficer}
-            onOpenSwitchModal={handleOpenSwitchModal}
+            onOpenSwitchModal={() => setIsIdentityModalOpen(true)}
             onOpenQrModal={() => setIsMyQrModalOpen(true)}
           />
         </div>
 
-        {/* लगइन स्थिति तथा लगआउट बटन */}
+        {/* लगइन / लगआउट स्थिति बटन */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-2 bg-emerald-950/80 border border-emerald-500/40 px-2.5 py-1 rounded-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-[11px] text-emerald-300 font-semibold">
-              {isAdmin ? 'Admin (लगइन)' : `${currentOfficer.rank} ${currentOfficer.name} (लगइन)`}
-            </span>
+          {isLoggedIn ? (
+            <div className="flex items-center gap-2 bg-emerald-950/80 border border-emerald-500/40 px-2.5 py-1 rounded-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[11px] text-emerald-300 font-semibold">{currentOfficer.rank} {currentOfficer.name} (लगइन)</span>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-0.5 rounded transition flex items-center gap-1 ml-1"
+              >
+                लगआउट
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-0.5 rounded transition flex items-center gap-1 ml-1"
+              onClick={() => setShowLoginModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow transition flex items-center gap-1.5"
             >
-              लगआउट
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              कम्प्युटर कोड लगइन
             </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -341,7 +401,30 @@ export default function App() {
         >
           <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4">
 
-            {activeTab === 'home' && (
+            {/* लगइन नगरेको अवस्थामा सामग्री बन्द, लगइन गर्न भन्ने स्क्रिन */}
+            {!hasAccess && (
+              <div className="flex items-center justify-center py-16">
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full text-center shadow-xl">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-base font-bold text-white mb-2">पहुँचका लागि लगइन आवश्यक छ</h2>
+                  <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+                    हाजिरी, परिपत्र, सूचना तथा अन्य सेवा हेर्न कृपया आफ्नो कम्प्युटर कोडबाट लगइन गर्नुहोस्।
+                  </p>
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow transition"
+                  >
+                    कम्प्युटर कोड लगइन
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {hasAccess && activeTab === 'home' && (
               <HomeTab
                 currentOfficer={currentOfficer}
                 todayDuty={todayDuty}
@@ -351,7 +434,7 @@ export default function App() {
                 latestCircular={circulars[0]}
                 latestNotice={notices[0]}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
                 onNavigateAttendance={() => setActiveTab('attendance')}
                 onNavigateDuty={() => setActiveTab('duty')}
                 onNavigatePatrol={() => setActiveTab('patrol')}
@@ -364,7 +447,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'circulars' && (
+            {hasAccess && activeTab === 'circulars' && (
               <CircularsTab
                 circulars={circulars}
                 onAddCircular={(newCirc) => setCirculars((prev) => [newCirc, ...prev])}
@@ -381,11 +464,11 @@ export default function App() {
                 }}
                 currentOfficer={currentOfficer}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'attendance' && (
+            {hasAccess && activeTab === 'attendance' && (
               <AttendanceTab
                 currentOfficer={currentOfficer}
                 officers={officers}
@@ -409,42 +492,42 @@ export default function App() {
                   );
                 }}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'gallery' && (
+            {hasAccess && activeTab === 'gallery' && (
               <GalleryTab
                 photos={galleryPhotos}
                 onAddPhoto={(newPhoto) => setGalleryPhotos((prev) => [newPhoto, ...prev])}
                 onDeletePhoto={(id) => setGalleryPhotos((prev) => prev.filter((p) => p.id !== id))}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'notices' && (
+            {hasAccess && activeTab === 'notices' && (
               <NoticeBoardTab
                 notices={notices}
                 onAddNotice={(newNotice) => setNotices((prev) => [newNotice, ...prev])}
                 onDeleteNotice={(id) => setNotices((prev) => prev.filter((n) => n.id !== id))}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'personnel' && (
+            {hasAccess && activeTab === 'personnel' && (
               <PersonnelDirectoryTab
                 officers={officers}
                 onUpdateOfficers={(newOfficers) => setOfficers(newOfficers)}
                 currentOfficerId={currentOfficerId}
                 onSelectAsDeviceUser={handleSelectOfficer}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'duty' && (
+            {hasAccess && activeTab === 'duty' && (
               <DutyRosterTab
                 duties={duties}
                 officers={officers}
@@ -452,22 +535,22 @@ export default function App() {
                 isAdmin={isAdmin}
                 onAddDuty={(newDuty) => setDuties((prev) => [newDuty, ...prev])}
                 onRemoveDuty={(dutyId) => setDuties((prev) => prev.filter((d) => d.id !== dutyId))}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
                 onNavigatePatrol={() => setActiveTab('patrol')}
               />
             )}
 
-            {activeTab === 'patrol' && (
+            {hasAccess && activeTab === 'patrol' && (
               <PatrolGpsTab
                 battalionConfig={battalionConfig}
                 duties={duties}
                 activeAlerts={activeAlerts}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'commander' && (
+            {hasAccess && activeTab === 'commander' && (
               <CommanderPortalTab
                 activeAlerts={activeAlerts}
                 officers={officers}
@@ -475,7 +558,7 @@ export default function App() {
                 battalionConfig={battalionConfig}
                 onUpdateBattalionConfig={setBattalionConfig}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
                 onResolveAlert={(alertId) => {
                   setActiveAlerts((prev) => prev.filter((a) => a.id !== alertId));
                   setAlertLog((prev) =>
@@ -489,24 +572,24 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'emergency' && (
+            {hasAccess && activeTab === 'emergency' && (
               <ContactsEmergencyTab />
             )}
 
-            {activeTab === 'office' && (
+            {hasAccess && activeTab === 'office' && (
               <OfficeProfileTab 
                 config={battalionConfig}
                 onUpdateConfig={setBattalionConfig}
                 isAdmin={isAdmin}
-                onRequireAdmin={requireAdmin}
+                onRequireAdmin={() => setIsAdminModalOpen(true)}
               />
             )}
 
-            {activeTab === 'calendar' && (
+            {hasAccess && activeTab === 'calendar' && (
               <CalendarTab />
             )}
 
-            {activeTab === 'library' && (
+            {hasAccess && activeTab === 'library' && (
               <DigitalLibraryTab />
             )}
 
@@ -532,14 +615,93 @@ export default function App() {
       {/* Offline Toast Indicator */}
       <OfflineIndicator />
 
+      {/* 5. Computer Code Login Modal (कम्प्युटर कोड हाल्ने पपअप) */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4" />
+                </svg>
+                प्रहरी कर्मचारी लगइन (युजर र पासवर्ड = कम्प्युटर कोड)
+              </h3>
+              <button 
+                onClick={() => setShowLoginModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleComputerCodeLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  युजर (User) — आफ्नो कम्प्युटर कोड:
+                </label>
+                <input
+                  type="text"
+                  value={computerCodeInput}
+                  onChange={(e) => setComputerCodeInput(e.target.value)}
+                  placeholder="उदा: 489201"
+                  autoComplete="username"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg font-mono text-white focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  पासवर्ड (Password) — फेरि उही कम्प्युटर कोड:
+                </label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="उदा: 489201"
+                  autoComplete="current-password"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-center text-lg font-mono text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {loginError && (
+                <p className="text-xs text-red-400 text-center font-medium leading-relaxed">{loginError}</p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLoginModal(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-xs font-bold transition"
+                >
+                  रद्द गर्नुहोस्
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-xs font-bold transition shadow-lg"
+                >
+                  लगइन गर्नुहोस्
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 6. Other Modals */}
       <IdentitySelectModal
-        isOpen={isAdmin && isIdentityModalOpen}
+        isOpen={isIdentityModalOpen}
         onClose={() => setIsIdentityModalOpen(false)}
         officers={officers}
         currentOfficerId={currentOfficerId}
         onSelectOfficer={handleSelectOfficer}
         onAddNewOfficer={handleAddNewOfficer}
+      />
+
+      <AdminUnlockModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onSuccess={handleAdminSuccess}
       />
 
       <EmergencyAlertModal
