@@ -1,8 +1,22 @@
 import React from 'react';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import {
+  getCurrentNepaliDate,
+  getWeekdayOfBsDate,
+  getNepaliDaysOfMonth,
+  toNepaliNumber,
+  NEPALI_MONTHS_DISPLAY,
+} from '../../lib/nepaliDate';
+
+const NEPALI_MONTHS_EN = ['Baisakh', 'Jestha', 'Ashadh', 'Shrawan', 'Bhadra', 'Ashoj', 'Kartik', 'Mangsir', 'Poush', 'Magh', 'Falgun', 'Chaitra'];
 
 export const CalendarTab: React.FC = () => {
-  const days = Array.from({ length: 30 }, (_, i) => i + 1);
+  // आजको वास्तविक नेपाली मिति (नेपाल समय अनुसार) र यस महिनाको वास्तविक दिन संख्या
+  const today = getCurrentNepaliDate();
+  const monthIndex = today.month - 1;
+  const days = getNepaliDaysOfMonth(today.totalDaysInMonth);
+  // महिनाको १ गते कुन वारमा पर्छ (० = आइत ... ६ = शनि) — ग्रिडको सुरुमा खाली घर राख्न
+  const firstWeekday = getWeekdayOfBsDate(today.year, monthIndex, 1);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -17,13 +31,13 @@ export const CalendarTab: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            नेपाली संवत् २०८३ साल आश्विन महिना (Ashoj 2083) • परेड, विशेष ड्युटी, पर्व सुरक्षा तथा बिदा
+            नेपाली संवत् {toNepaliNumber(today.year)} साल {NEPALI_MONTHS_DISPLAY[monthIndex]} महिना ({NEPALI_MONTHS_EN[monthIndex]} {today.year}) • परेड, विशेष ड्युटी, पर्व सुरक्षा तथा बिदा
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg shadow">
-            २०८३ आश्विन १३ गते, मंगलबार (आज)
+            {today.fullText} (आज)
           </span>
         </div>
       </div>
@@ -41,9 +55,12 @@ export const CalendarTab: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center text-xs">
+          {Array.from({ length: firstWeekday }, (_, i) => (
+            <div key={`blank-${i}`} />
+          ))}
           {days.map((day) => {
-            const isToday = day === 13;
-            const isSaturday = day % 7 === 0;
+            const isToday = day === today.day;
+            const isSaturday = (firstWeekday + day - 1) % 7 === 6;
             const isParade = day === 5 || day === 19;
             const isSpecial = day === 10 || day === 24;
 

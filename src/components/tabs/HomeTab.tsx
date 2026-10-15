@@ -31,6 +31,7 @@ import { Officer, DutyItem, AttendanceRecord, BattalionConfig, CircularDocument,
 import { BATTALION_EMBLEM, BATTALION_BANNER } from '../../assets/images';
 import { PWAInstallButton } from '../PWAInstallButton';
 import { OfficerQrModal } from '../OfficerQrModal';
+import { toDialNumber, getNepaliDateText, getNepaliDateSlash } from '../../lib/nepaliDate';
 
 interface HomeTabProps {
   currentOfficer: Officer;
@@ -384,7 +385,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
             <span className="text-[11px] text-slate-400 block font-medium">२४ घन्टे ड्युटी अधिकृत</span>
             <a 
-              href={`tel:${battalionConfig.dutyOfficerContact}`} 
+              href={`tel:${toDialNumber(battalionConfig.dutyOfficerContact)}`} 
               className="text-sm font-mono font-bold text-blue-400 hover:underline block"
             >
               {battalionConfig.dutyOfficerContact}
@@ -395,7 +396,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
             <span className="text-[11px] text-slate-400 block font-medium">कार्यालय टेलिफोन</span>
             <a 
-              href={`tel:${battalionConfig.officeContact}`} 
+              href={`tel:${toDialNumber(battalionConfig.officeContact)}`} 
               className="text-sm font-mono font-bold text-emerald-400 hover:underline block"
             >
               {battalionConfig.officeContact}
@@ -429,7 +430,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   ताजा परिपत्र (Circular Alert)
                 </span>
                 <span className="text-xs text-slate-400">
-                  {latestCircular?.date || '२०८३/०६/१०'}
+                  {latestCircular?.date || getNepaliDateSlash()}
                 </span>
               </div>
               <h3 className="text-sm sm:text-base font-bold text-white mt-0.5">
@@ -535,7 +536,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 <span>विशेष प्रणाली: "मेरो आज" दैनिक ड्युटी ब्रिफिङ</span>
               </h2>
               <p className="text-xs text-slate-400">
-                आज, {todayDuty?.date || '२०८३ असोज १३ गते'}
+                आज, {getNepaliDateText()}
               </p>
             </div>
           </div>
@@ -617,7 +618,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             <div className="text-sm sm:text-base font-bold text-amber-300 pl-6 flex items-center flex-wrap gap-2">
               <span>{todayDuty?.commanderRank || 'प्र.स.नि. (ASI)'} {todayDuty?.commanderName || 'शिव श्रेष्ठ'}</span>
               <a 
-                href={`tel:${todayDuty?.commanderPhone || '9851100123'}`} 
+                href={`tel:${toDialNumber(todayDuty?.commanderPhone || '9851100123')}`} 
                 className="text-xs font-mono text-blue-400 hover:text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1"
               >
                 <PhoneCall className="w-3 h-3" />
@@ -637,7 +638,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               <span className="text-slate-300 font-normal"> ({todayDuty?.vehicleModel || 'Scorpio QRF Van'})</span>
             </div>
             <div className="text-xs text-slate-400 pl-6">
-              चालक: <span className="text-slate-200">{todayDuty?.driverName || 'प्र.ज. सुमन केसी'}</span> • फोन: <a href={`tel:${todayDuty?.driverPhone || '9841230099'}`} className="text-blue-400 hover:underline">{todayDuty?.driverPhone || '९८४१२३००९९'}</a>
+              चालक: <span className="text-slate-200">{todayDuty?.driverName || 'प्र.ज. सुमन केसी'}</span> • फोन: <a href={`tel:${toDialNumber(todayDuty?.driverPhone || '9841230099')}`} className="text-blue-400 hover:underline">{todayDuty?.driverPhone || '९८४१२३००९९'}</a>
             </div>
           </div>
 

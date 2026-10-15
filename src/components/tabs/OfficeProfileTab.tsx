@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { BattalionConfig } from '../../types/police';
 import { BATTALION_EMBLEM, BATTALION_BANNER } from '../../assets/images';
+import { toDialNumber } from '../../lib/nepaliDate';
 
 interface OfficeProfileTabProps {
   config: BattalionConfig;
@@ -492,7 +493,7 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">२४ घन्टे ड्युटी अधिकृत (Duty Officer)</span>
                 <a 
-                  href={`tel:${config.dutyOfficerContact}`} 
+                  href={`tel:${toDialNumber(config.dutyOfficerContact)}`} 
                   className="text-base font-mono font-bold text-amber-400 hover:underline block mt-0.5"
                 >
                   {config.dutyOfficerContact}
@@ -503,7 +504,7 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">कार्यालय टेलिफोन</span>
                 <a 
-                  href={`tel:${config.officeContact}`} 
+                  href={`tel:${toDialNumber(config.officeContact)}`} 
                   className="text-sm font-mono font-bold text-emerald-400 hover:underline block mt-0.5"
                 >
                   {config.officeContact}

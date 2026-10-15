@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { Officer } from '../types/police';
+import { getNepaliDateSlash } from './nepaliDate';
 
 export interface OfficerQrPayload {
   officerId: string;
@@ -24,7 +25,7 @@ export async function generateOfficerQrDataUrl(officer: Officer): Promise<string
     darbandi: officer.darbandi,
     companyOrTeam: officer.companyOrTeam || officer.section || 'क कम्पनी',
     bloodGroup: officer.bloodGroup,
-    verifiedAt: '२०८३/०६/१३',
+    verifiedAt: getNepaliDateSlash(),
     authority: 'सशस्त्र प्रहरी गण नं. २ महाराजगञ्ज',
   };
 

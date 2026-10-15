@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { EMERGENCY_CONTACTS } from '../../data/mockData';
 import { EmergencyContact } from '../../types/police';
+import { toDialNumber } from '../../lib/nepaliDate';
 
 export const ContactsEmergencyTab: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,7 +28,7 @@ export const ContactsEmergencyTab: React.FC = () => {
 
   const handleCopyNumber = (contact: EmergencyContact) => {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(contact.phone.replace(/[^0-9]/g, ''));
+      navigator.clipboard.writeText(toDialNumber(contact.phone));
       setCopiedId(contact.id);
       setTimeout(() => setCopiedId(null), 2500);
     }
@@ -212,7 +213,7 @@ export const ContactsEmergencyTab: React.FC = () => {
               </button>
 
               <a
-                href={`tel:${contact.phone.replace(/[^0-9]/g, '')}`}
+                href={`tel:${toDialNumber(contact.phone)}`}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition whitespace-nowrap"
               >
                 <PhoneCall className="w-3.5 h-3.5" />

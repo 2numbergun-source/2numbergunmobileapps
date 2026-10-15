@@ -14,6 +14,7 @@ import {
   Edit
 } from 'lucide-react';
 import { EmergencyAlert, Officer, DutyItem, BattalionConfig } from '../../types/police';
+import { toDialNumber } from '../../lib/nepaliDate';
 
 interface CommanderPortalTabProps {
   activeAlerts: EmergencyAlert[];
@@ -133,14 +134,14 @@ export const CommanderPortalTab: React.FC<CommanderPortalTabProps> = ({
                     <div>समय: <strong className="text-amber-300 font-mono">{alert.timestamp}</strong></div>
                     <div>स्थान: <strong className="text-cyan-300">{alert.locationName}</strong></div>
                     <div>अवस्था: <strong className="text-red-400">{alert.status}</strong></div>
-                    <div>सम्पर्क नम्बर: <a href={`tel:${alert.phone}`} className="text-blue-400 underline font-mono">{alert.phone}</a></div>
+                    <div>सम्पर्क नम्बर: <a href={`tel:${toDialNumber(alert.phone)}`} className="text-blue-400 underline font-mono">{alert.phone}</a></div>
                     <div>डायल गरिएको नम्बर: <strong className="text-emerald-400">{alert.dialedNumber || '१००'}</strong></div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
                   <a
-                    href={`tel:${alert.phone}`}
+                    href={`tel:${toDialNumber(alert.phone)}`}
                     className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5"
                   >
                     <PhoneCall className="w-3.5 h-3.5" />

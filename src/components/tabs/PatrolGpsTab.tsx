@@ -16,6 +16,7 @@ import {
   Compass
 } from 'lucide-react';
 import { DutyItem, EmergencyAlert, BattalionConfig } from '../../types/police';
+import { toDialNumber } from '../../lib/nepaliDate';
 
 interface PatrolGpsTabProps {
   battalionConfig: BattalionConfig;
@@ -335,7 +336,7 @@ export const PatrolGpsTab: React.FC<PatrolGpsTabProps> = ({
                       <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
                       सम्पर्क फोन:
                     </span>
-                    <a href={`tel:${selectedPin.phone}`} className="font-bold text-blue-400 hover:underline font-mono">
+                    <a href={`tel:${toDialNumber(selectedPin.phone)}`} className="font-bold text-blue-400 hover:underline font-mono">
                       {selectedPin.phone}
                     </a>
                   </div>

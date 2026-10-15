@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Officer, EmergencyAlert } from '../types/police';
 import { playEmergencySiren, stopEmergencySiren } from '../lib/alerts';
+import { toDialNumber } from '../lib/nepaliDate';
 
 interface EmergencyAlertModalProps {
   isOpen: boolean;
@@ -48,6 +49,9 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
   const [autoCallTriggered, setAutoCallTriggered] = useState<boolean>(false);
   const autoDialTimerRef = useRef<number | null>(null);
 
+  // वास्तविक GPS पाइयो कि पाइएन (नपाए गणको अनुमानित क्षेत्र मात्र देखाइन्छ, सही स्थान भनेर होइन)
+  const [gpsOk, setGpsOk] = useState<boolean>(false);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
     lat: 27.7369,
     lng: 85.3305,
@@ -64,20 +68,25 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
         .catch(() => setBatteryLevel(85));
     }
 
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    // SOS खुल्दा ताजा GPS लिने (पुरानो वा क्यास गरिएको स्थान होइन)
+    if (isOpen && typeof navigator !== 'undefined' && navigator.geolocation) {
+      setGpsOk(false);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setCurrentCoords({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           });
+          setGpsAccuracy(Math.round(pos.coords.accuracy));
+          setGpsOk(true);
         },
         () => {
-          setCurrentCoords({ lat: 27.7369, lng: 85.3305 });
-        }
+          setGpsOk(false);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     }
-  }, []);
+  }, [isOpen]);
 
   // Countdown timer for initial confirmation
   useEffect(() => {
@@ -136,7 +145,7 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
     setAutoCallTriggered(true);
     // Automatic dial execution via telephone URI scheme
     try {
-      window.location.href = `tel:${phoneNum.replace(/[^0-9]/g, '')}`;
+      window.location.href = `tel:${toDialNumber(phoneNum)}`;
     } catch (e) {
       console.warn('Call execution attempted:', e);
     }
@@ -154,13 +163,17 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
       officerRank: officer.rank,
       phone: officer.phone,
       coords: currentCoords,
-      locationName: 'महाराजगञ्ज गण क्षेत्र / नारायणगोपाल चोक नजिक',
+      locationName: gpsOk
+        ? `GPS स्थान: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}${gpsAccuracy != null ? ` (±${gpsAccuracy} मि.)` : ''}`
+        : 'GPS प्राप्त हुन सकेन — महाराजगञ्ज गण क्षेत्र (अनुमानित, वास्तविक स्थान होइन)',
       timestamp: new Date().toLocaleTimeString('ne-NP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       batteryLevel,
       status: '🚨 आपतकालीन सक्रिय',
       sirenTriggered: true,
       dialedNumber: selectedEmergencyNumber,
-      note: 'कर्मचारीद्वारा मोबाइलबाट आपतकालीन SOS तथा स्वचालित कल प्रसारण गरिएको',
+      note: gpsOk
+        ? 'कर्मचारीद्वारा मोबाइलबाट आपतकालीन SOS तथा स्वचालित कल प्रसारण गरिएको'
+        : 'कर्मचारीद्वारा मोबाइलबाट आपतकालीन SOS तथा स्वचालित कल प्रसारण गरिएको (GPS उपलब्ध नभएकाले स्थान अनुमानित छ — कृपया फोनमा सम्पर्क गर्नुहोस्)',
     };
 
     onDispatchAlert(newAlert);
@@ -179,7 +192,7 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
   const handleShareLocation = () => {
     setLocationShared(true);
     if (navigator.clipboard) {
-      const shareText = `[नेपाल प्रहरी आपतकालीन म्याप] कर्मचारी: ${officer.name} (${officer.rank}) | समय: ${new Date().toLocaleTimeString()} | GPS: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}`;
+      const shareText = `[नेपाल प्रहरी आपतकालीन म्याप] कर्मचारी: ${officer.name} (${officer.rank}) | समय: ${new Date().toLocaleTimeString()} | GPS: ${gpsOk ? `${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}` : 'प्राप्त हुन सकेन'}`;
       navigator.clipboard.writeText(shareText);
     }
   };

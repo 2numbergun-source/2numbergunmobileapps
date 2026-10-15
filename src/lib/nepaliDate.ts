@@ -124,6 +124,25 @@ export function getCurrentNepaliDate(now: Date = new Date()): {
   };
 }
 
+// आजको मिति छोटो रूपमा: "२०८३ असोज २८ गते" (withGate=false भए "२०८३ असोज २८")
+export function getNepaliDateText(withGate: boolean = true, now: Date = new Date()): string {
+  const d = getCurrentNepaliDate(now);
+  const monthShort = NEPALI_MONTHS[d.month - 1].split(' ')[0]; // "असोज (आश्विन)" -> "असोज"
+  return `${toNepaliNumber(d.year)} ${monthShort} ${toNepaliNumber(d.day)}${withGate ? ' गते' : ''}`;
+}
+
+// आजको मिति "२०८३/०६/२८" ढाँचामा
+export function getNepaliDateSlash(now: Date = new Date()): string {
+  return getCurrentNepaliDate(now).dateString.replace(/-/g, '/');
+}
+
+// फोन नम्बरलाई डायल गर्न मिल्ने (अङ्ग्रेजी अंक) रूपमा बदल्ने: "९८५१२३०००२" -> "9851230002"
+export function toDialNumber(phone: string | number | null | undefined): string {
+  const ascii = String(phone ?? '').replace(/[०-९]/g, (d) => String('०१२३४५६७८९'.indexOf(d)));
+  const plus = ascii.trim().startsWith('+') ? '+' : '';
+  return plus + ascii.replace(/[^0-9]/g, '');
+}
+
 // नेपाली महिना अनुसार ठ्याक्कै १ देखि (२९/३०/३१/३२) गते सम्मका दिनहरूको एरे
 export function getNepaliDaysOfMonth(totalDays: number): number[] {
   return Array.from({ length: totalDays }, (_, i) => i + 1);

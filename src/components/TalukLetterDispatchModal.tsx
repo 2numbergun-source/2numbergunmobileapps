@@ -13,6 +13,7 @@ import {
   Eye
 } from 'lucide-react';
 import { BattalionNotice } from '../types/police';
+import { getNepaliDateText } from '../lib/nepaliDate';
 
 interface TalukLetterDispatchModalProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export const TalukLetterDispatchModal: React.FC<TalukLetterDispatchModalProps> =
   const [customTalukOffice, setCustomTalukOffice] = useState('');
   const [patraSankhya, setPatraSankhya] = useState('०८२/०८३');
   const [chalaniNo, setChalaniNo] = useState('४८९२');
-  const [letterDate, setLetterDate] = useState('२०८३ असोज १०');
+  const [letterDate, setLetterDate] = useState(getNepaliDateText(false));
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<BattalionNotice['category']>('तालुक पत्र');

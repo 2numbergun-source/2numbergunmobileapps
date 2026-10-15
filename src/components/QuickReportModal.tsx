@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Camera, MapPin, AlertTriangle, Send, X, CheckCircle, ShieldAlert } from 'lucide-react';
 import { IncidentProblemReport } from '../types/police';
+import { getNepaliDateText } from '../lib/nepaliDate';
 
 interface QuickReportModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export const QuickReportModal: React.FC<QuickReportModalProps> = ({
       location,
       reportedBy: reporterName,
       reportedByRank: reporterRank,
-      reportedDate: 'आज, २०८३ असोज १०',
+      reportedDate: `आज, ${getNepaliDateText(false)}`,
       description,
       priority,
       status: 'लम्बित (Pending)',

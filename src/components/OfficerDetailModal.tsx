@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Shield, PhoneCall, Printer, Edit3, QrCode, Download } from 'lucide-react';
 import { Officer } from '../types/police';
 import { generateOfficerQrDataUrl } from '../lib/qrCodeUtil';
+import { toDialNumber } from '../lib/nepaliDate';
 
 interface OfficerDetailModalProps {
   officer: Officer | null;
@@ -219,7 +220,7 @@ export const OfficerDetailModal: React.FC<OfficerDetailModalProps> = ({
         <div className="px-5 py-3 bg-[#091333] border-t border-blue-950 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span>सम्पर्क फोन:</span>
-            <a href={`tel:${officer.phone}`} className="font-bold text-blue-400 hover:underline font-mono">
+            <a href={`tel:${toDialNumber(officer.phone)}`} className="font-bold text-blue-400 hover:underline font-mono">
               {officer.phone}
             </a>
           </div>

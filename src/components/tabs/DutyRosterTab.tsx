@@ -14,6 +14,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { DutyItem, Officer } from '../../types/police';
+import { getNepaliDateText } from '../../lib/nepaliDate';
 
 interface DutyRosterTabProps {
   duties: DutyItem[];
@@ -82,7 +83,7 @@ export const DutyRosterTab: React.FC<DutyRosterTabProps> = ({
       id: `duty-${Date.now()}`,
       officerId: assignedOfficerId,
       title: title.trim(),
-      date: '२०८३ असोज १३ गते',
+      date: getNepaliDateText(),
       timeSlot,
       dutyType,
       locationName: locationName.trim(),
