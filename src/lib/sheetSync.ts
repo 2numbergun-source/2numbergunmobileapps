@@ -12,7 +12,7 @@ type Mode = 'replace' | 'upsert';
 type AnyRow = { id: string; [k: string]: any };
 
 const ENV = ((import.meta as any).env || {}) as Record<string, string | undefined>;
-const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbwWvTJKY79dVJoOsbN_W9fV3fW3BduyVZAmm9x4IEhjxjHwiqO5dOAx3_Rm6-xVAQpc/exec';
+const URL_ = ENV.VITE_SHEET_URL || 'https://script.google.com/macros/s/AKfycbwYpKWJZk342L5NBK3_gXEX-dgXJfczIAbOvVylx4ot5ynF5-68hHcjP7b2W63NgzZM/exec';
 const TOKEN = 'apf-gan2-token-change-me'; // Code.gs को APP_TOKEN सँग ठ्याक्कै उस्तै
 
 const POLL_MS = 90_000;
