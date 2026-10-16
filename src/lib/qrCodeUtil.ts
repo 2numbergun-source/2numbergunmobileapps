@@ -15,6 +15,9 @@ export interface OfficerQrPayload {
   authority: string;
 }
 
+// गेट पास पेजको ठेगाना (QR स्क्यान गर्दा यही पेज खुल्छ)
+export const GATE_PASS_URL = 'https://kamgun2083-sketch.github.io/digital-gate-pass/';
+
 export async function generateOfficerQrDataUrl(officer: Officer): Promise<string> {
   const payload: OfficerQrPayload = {
     officerId: officer.id,
@@ -29,7 +32,11 @@ export async function generateOfficerQrDataUrl(officer: Officer): Promise<string
     authority: 'सशस्त्र प्रहरी गण नं. २ महाराजगञ्ज',
   };
 
-  const payloadString = JSON.stringify(payload);
+  // QR भित्र JSON होइन, गेट पासको लिङ्क राखिन्छ। जुनसुकै फोनको सामान्य क्यामेराले
+  // स्क्यान गर्दा गेट पास खुल्छ र कम्प्युटर कोड, दर्जा, नाम आफैँ भरिन्छ।
+  const payloadString = `${GATE_PASS_URL}?code=${encodeURIComponent(
+    String(payload.computerCode).trim()
+  )}`;
 
   try {
     return await QRCode.toDataURL(payloadString, {
@@ -39,7 +46,7 @@ export async function generateOfficerQrDataUrl(officer: Officer): Promise<string
         dark: '#0f172a',
         light: '#ffffff',
       },
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'H', // बीचमा लोगो राखिएकाले उच्च सुरक्षा स्तर
     });
   } catch (err) {
     console.error('Failed to generate officer QR Code:', err);
