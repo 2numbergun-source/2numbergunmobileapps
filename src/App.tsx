@@ -68,6 +68,21 @@ function NepaliClock() {
   return <>{d.fullText.replace(/^(\S+) /, '$1 साल ')} • {d.timeString}</>;
 }
 
+// Admin सत्रका लागि खाली प्रोफाइल (कुनै कर्मचारीको व्यक्तिगत विवरण होइन)
+const ADMIN_PROFILE: Officer = {
+  id: 'admin',
+  bgCode: '',
+  computerCode: '',
+  sanketNo: '',
+  rank: '',
+  name: 'Admin (प्रशासक)',
+  darbandi: '',
+  phone: '',
+  bloodGroup: '',
+  role: 'Admin',
+  section: '',
+};
+
 export default function App() {
   // 1. Core State
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -219,8 +234,11 @@ export default function App() {
   // अर्को कर्मचारीको नयाँ SOS आउँदा साइरन, कम्पन र सूचना (एप खुला हुँदा मात्र)
   useSosSiren(activeAlerts, currentOfficerId);
 
-  const currentOfficer =
-    officers.find((o) => o.id === currentOfficerId) || officers[0] || INITIAL_OFFICERS[0];
+  // Admin ले लगइन गरेको अवस्थामा कुनै कर्मचारीको नाम होइन, "Admin" देखाउने
+  const adminSession = cloudSession().role === 'admin';
+  const currentOfficer: Officer = adminSession
+    ? ADMIN_PROFILE
+    : officers.find((o) => o.id === currentOfficerId) || officers[0] || INITIAL_OFFICERS[0];
 
   const todayDuty =
     duties.find((d) => d.officerId === currentOfficer.id) ||

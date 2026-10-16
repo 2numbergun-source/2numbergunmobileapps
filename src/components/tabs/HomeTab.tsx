@@ -246,27 +246,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   <span>{currentOfficer.name}</span>
                 </div>
                 <div className="text-xs text-slate-400">
-                  दर्ता नं: <span className="text-slate-200 font-mono font-semibold">{currentOfficer.computerCode}</span> • {currentOfficer.role}
+                  {currentOfficer.id === 'admin' ? 'प्रशासक (Admin) — सम्पूर्ण प्रणाली व्यवस्थापन' : (<>दर्ता नं: <span className="text-slate-200 font-mono font-semibold">{currentOfficer.computerCode}</span> • {currentOfficer.role}</>)}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowQrModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition cursor-pointer"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>मेरो QR कोड</span>
-                </button>
+              {currentOfficer.id !== 'admin' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowQrModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition cursor-pointer"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>मेरो QR कोड</span>
+                  </button>
 
-                <button
-                  onClick={() => setShowIdCard(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 text-xs font-semibold transition cursor-pointer"
-                >
-                  <IdCard className="w-3.5 h-3.5 text-blue-400" />
-                  <span>डिजिटल परिचय पत्र</span>
-                </button>
-              </div>
+                  <button
+                    onClick={() => setShowIdCard(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 text-xs font-semibold transition cursor-pointer"
+                  >
+                    <IdCard className="w-3.5 h-3.5 text-blue-400" />
+                    <span>डिजिटल परिचय पत्र</span>
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
