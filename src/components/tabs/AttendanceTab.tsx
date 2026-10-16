@@ -167,18 +167,62 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   }, [currentCoords, battalionConfig]);
 
   // वास्तविक GPS बाट ताजा स्थान लिने
+  // watchPosition ले केही सेकेन्ड सम्म GPS सिग्नल सुधार हुन पर्खन्छ र सबैभन्दा राम्रो (कम ±मिटर) स्थान दिन्छ।
+  // यसले GPS अन भएको फोनमा पनि पहिलो प्रयासमै timeout भएर "GPS छैन" देखिने समस्या हटाउँछ।
   const getFreshPosition = (): Promise<GeolocationPosition> =>
     new Promise((resolve, reject) => {
       if (typeof navigator === 'undefined' || !navigator.geolocation) {
-        reject(new Error('ब्राउजरले Geolocation समर्थन गर्दैन।'));
+        reject({ code: 0, message: 'ब्राउजरले Geolocation समर्थन गर्दैन।' });
         return;
       }
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      });
+      const GOOD_ENOUGH_M = 25; // यति सटीक भएपछि तुरुन्तै स्वीकार
+      const MAX_WAIT_MS = 25000; // अधिकतम पर्खाइ
+      let best: GeolocationPosition | null = null;
+      let lastErr: any = null;
+      let done = false;
+      let watchId: number | null = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (pos: GeolocationPosition | null, err?: any) => {
+        if (done) return;
+        done = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (timer) clearTimeout(timer);
+        if (pos) resolve(pos);
+        else reject(err || lastErr || { code: 3, message: 'timeout' });
+      };
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+          if (pos.coords.accuracy <= GOOD_ENOUGH_M) finish(pos);
+        },
+        (err) => {
+          lastErr = err;
+          // अनुमति नदिएको भए पर्खनु व्यर्थ हुन्छ
+          if (err && err.code === 1) finish(null, err);
+          // अन्य त्रुटि (सिग्नल/timeout) मा पर्खन जारी राख्ने
+        },
+        { enableHighAccuracy: true, timeout: MAX_WAIT_MS, maximumAge: 0 }
+      );
+      timer = setTimeout(() => finish(best), MAX_WAIT_MS);
     });
+
+  // GPS त्रुटिको कारण अनुसार स्पष्ट सन्देश
+  const gpsErrorText = (err: any): string => {
+    switch (err && err.code) {
+      case 1:
+        return 'Location अनुमति दिइएको छैन। Chrome/Safari मा 🔒 आइकन थिचेर Location → Allow गर्नुहोस्। (Messenger/Viber/Facebook भित्रको लिंक होइन, सिधै Chrome मा खोल्नुहोस्।)';
+      case 2:
+        return 'फोनको GPS/Location बन्द छ वा सिग्नल आएन। फोनको Location अन गरेर (High accuracy) पुनः रिफ्रेस गर्नुहोस्।';
+      case 3:
+        return 'GPS सिग्नल पर्खँदा धेरै समय लाग्यो। खुला आकाश मुनि गएर पुनः रिफ्रेस गर्नुहोस्।';
+      case 0:
+        return 'यो ब्राउजरले GPS समर्थन गर्दैन। फोनको Chrome/Safari मा खोल्नुहोस्।';
+      default:
+        return 'GPS स्थान प्राप्त हुन सकेन। Location अन गरेर पुनः रिफ्रेस गर्नुहोस्।';
+    }
+  };
 
   // Handle GPS location refresh
   const refreshLocation = () => {
@@ -193,11 +237,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       })
       .catch((err: any) => {
         setGpsFixed(false);
-        setGpsError(
-          err && err.code === 1
-            ? 'GPS अनुमति दिइएको छैन। ब्राउजर/फोन सेटिङमा Location अनुमति दिनुहोस्।'
-            : 'GPS सिग्नल प्राप्त हुन सकेन। खुला ठाउँमा गएर पुनः रिफ्रेस गर्नुहोस्।'
-        );
+        setGpsError(gpsErrorText(err));
         setGpsLoading(false);
       });
   };
@@ -362,9 +402,10 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
         alert(`GPS को सटीकता कमजोर छ (±${Math.round(pos.coords.accuracy)} मिटर)। खुला ठाउँमा गएर केही बेरपछि पुनः प्रयास गर्नुहोस्।`);
         return;
       }
-    } catch {
+    } catch (err: any) {
       setGpsFixed(false);
-      alert('वास्तविक GPS स्थान प्राप्त हुन सकेन। Location अनुमति दिएर पुनः प्रयास गर्नुहोस्। GPS बिना हाजिरी लाग्दैन।');
+      setGpsError(gpsErrorText(err));
+      alert(gpsErrorText(err) + ' (GPS बिना हाजिरी लाग्दैन।)');
       return;
     }
     if (dist > battalionConfig.virtualBoundaryMeters) {
