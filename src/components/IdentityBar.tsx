@@ -1,16 +1,15 @@
 import React from 'react';
-import { UserCheck, RefreshCw, QrCode } from 'lucide-react';
+import { UserCheck, QrCode } from 'lucide-react';
 import { Officer } from '../types/police';
 
 interface IdentityBarProps {
   currentOfficer: Officer;
-  onOpenSwitchModal: () => void;
+  onOpenSwitchModal?: () => void; // अब प्रयोग हुँदैन (अर्को कर्मचारी बदल्ने सुविधा हटाइएको)
   onOpenQrModal?: () => void;
 }
 
 export const IdentityBar: React.FC<IdentityBarProps> = ({
   currentOfficer,
-  onOpenSwitchModal,
   onOpenQrModal,
 }) => {
   const isAdminProfile = currentOfficer.id === 'admin';
@@ -46,14 +45,6 @@ export const IdentityBar: React.FC<IdentityBarProps> = ({
                 <span>मेरो QR कोड</span>
               </button>
             )}
-
-            <button
-              onClick={onOpenSwitchModal}
-              className="flex items-center gap-1 text-blue-400 hover:text-blue-300 font-medium transition cursor-pointer hover:underline ml-1"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>बदल्नुहोस्</span>
-            </button>
           </div>
         )}
       </div>
