@@ -50,7 +50,7 @@ export const IdentitySelectModal: React.FC<IdentitySelectModalProps> = ({
       darbandi: 'सशस्त्र प्रहरी गण नं. २ महाराजगञ्ज',
       phone: newPhone.trim() || '९८४०००००००',
       bloodGroup: 'B +ve',
-      role: 'विशेष कार्यदल / सुरक्षा',
+      role: 'सुरक्षा',
       section: newSection,
       companyOrTeam: newSection,
       pin: '1234',
@@ -201,9 +201,9 @@ export const IdentitySelectModal: React.FC<IdentitySelectModalProps> = ({
                     <option value="प्रहरी सहायक हवल्दार">प्रहरी सहायक हवल्दार</option>
                     <option value="प्रहरी हवल्दार">प्रहरी हवल्दार</option>
                      <option value="प्रहरी बरिष्ठ हवल्दार">प्रहरी बरिष्ठ हवल्दार</option>
-                    <option value="प्र.स.नि. (ASI)">प्र.स.नि. (ASI)</option>
-                    <option value="प्र.ना.नि. (SI)">प्र.ना.नि. (SI)</option>
-                      <option value="प्र.ब.ना.नि. (SSI)">प्र.ब.ना.नि. (SSI)</option>
+                    <option value="प्रहरी सहायक निरीक्षक (ASI)">प्रहरी सहायक निरीक्षक (ASI)</option>
+                    <option value="प्रहरी नायव निरीक्षक (SI)">प्रहरी नायव निरीक्षक (SI)</option>
+                      <option value="प्रहरी बरिष्ठ नायव निरीक्षक (SSI)">प्रहरी बरिष्ठ नायव निरीक्षक (SSI)</option>
                     <option value="प्रहरी निरीक्षक (Inspector)">प्रहरी निरीक्षक (Inspector)</option>
                     <option value="प्रहरी नायव उपरीक्षक (DSP)">प्रहरी नायव उपरीक्षक (DSP)</option>
                     <option value="प्रहरी उपरीक्षक (SP)">प्रहरी उपरीक्षक (SP)</option>
@@ -236,7 +236,7 @@ export const IdentitySelectModal: React.FC<IdentitySelectModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">शाखा / प्लाटुन</label>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">शाखा / फिल्ड</label>
                   <input
                     type="text"
                     value={newSection}
