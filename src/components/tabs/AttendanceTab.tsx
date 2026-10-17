@@ -114,6 +114,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  // ब्राउजर/एपले यो साइटलाई Location अनुमति दिएको अवस्था: granted | prompt | denied | unknown
+  const [permState, setPermState] = useState<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
+  const permStateRef = useRef<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
+  const gpsFixedRef = useRef<boolean>(false);
+  const gpsLoadingRef = useRef<boolean>(false);
 
   // Verification method state: GPS + PIN or GPS + QR
   const [verificationType, setVerificationType] = useState<'pin' | 'qr'>('pin');
@@ -216,7 +221,13 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   const gpsErrorText = (err: any): string => {
     switch (err && err.code) {
       case 1:
-        return 'Location अनुमति दिइएको छैन। Chrome/Safari मा 🔒 आइकन थिचेर Location → Allow गर्नुहोस्। (Messenger/Viber/Facebook भित्रको लिंक होइन, सिधै Chrome मा खोल्नुहोस्।)';
+        if (permStateRef.current === 'denied') {
+          return 'यो एपलाई Location अनुमति रोकिएको छ (फोनको Location चालु भए पनि एपलाई अनुमति चाहिन्छ)। फोनको Settings → Apps → यो एप (वा Chrome) → Permissions → Location → "Allow" (वा "Allow only while using the app") गर्नुहोस्। Chrome मा भए: ⋮ → Settings → Site settings → Location → यो साइट "Allowed" बनाउनुहोस्। त्यसपछि यहीँ फर्कनुहोस्, GPS आफैँ पत्ता लाग्छ।';
+        }
+        if (permStateRef.current === 'prompt') {
+          return 'Location अनुमति माग्ने बक्स आउँदा "Allow" थिच्नुहोस्। बक्स नआए तलको "Location अनुमति माग्नुहोस्" बटन थिच्नुहोस्।';
+        }
+        return 'Location अनुमति दिइएको छैन। फोनको Settings → Apps → यो एप (वा Chrome) → Permissions → Location → "Allow" गर्नुहोस्। (Messenger/Viber/Facebook भित्रको लिंक होइन, सिधै Chrome वा होम स्क्रिनको एपबाट खोल्नुहोस्।)';
       case 2:
         return 'फोनको GPS/Location बन्द छ वा सिग्नल आएन। फोनको Location अन गरेर (High accuracy) पुनः रिफ्रेस गर्नुहोस्।';
       case 3:
@@ -245,6 +256,45 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
         setGpsLoading(false);
       });
   };
+
+  // अनुमति बदलिँदा (Settings बाट Allow गरेपछि) वा एपमा फर्कँदा आफैँ GPS फेरि खोज्ने
+  useEffect(() => {
+    gpsFixedRef.current = gpsFixed;
+    gpsLoadingRef.current = gpsLoading;
+  }, [gpsFixed, gpsLoading]);
+
+  useEffect(() => {
+    let status: any = null;
+    try {
+      const perms = (navigator as any).permissions;
+      if (perms && perms.query) {
+        perms
+          .query({ name: 'geolocation' })
+          .then((st: any) => {
+            status = st;
+            permStateRef.current = st.state;
+            setPermState(st.state);
+            st.onchange = () => {
+              permStateRef.current = st.state;
+              setPermState(st.state);
+              if (st.state === 'granted' && !gpsFixedRef.current && !gpsLoadingRef.current) refreshLocation();
+            };
+          })
+          .catch(() => {});
+      }
+    } catch {
+      /* Permissions API समर्थित छैन */
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !gpsFixedRef.current && !gpsLoadingRef.current) refreshLocation();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      if (status) status.onchange = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // पेज खुल्दा नै स्वचालित GPS खोज्ने
   useEffect(() => {
@@ -856,7 +906,18 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
           {gpsError && (
             <div className="bg-red-950/70 border border-red-500/50 p-2.5 rounded-lg text-[11px] text-red-200 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <span>{gpsError}</span>
+              <div className="space-y-2">
+                <span>{gpsError}</span>
+                <button
+                  type="button"
+                  data-perm={permState}
+                  onClick={refreshLocation}
+                  disabled={gpsLoading}
+                  className="block bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[11px] font-bold px-3 py-1.5 rounded"
+                >
+                  {gpsLoading ? 'GPS खोजिँदैछ...' : '📍 Location अनुमति माग्नुहोस् / पुनः प्रयास'}
+                </button>
+              </div>
             </div>
           )}
         </div>
