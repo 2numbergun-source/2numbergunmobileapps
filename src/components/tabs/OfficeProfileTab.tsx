@@ -54,9 +54,9 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
 
   // Custom key responsibilities (गणका प्रमुख कार्यक्षेत्र तथा जिम्मेवारीहरू)
   const defaultResponsibilities = [
-    { id: '1', title: 'द्रुत प्रतिकार्य (QRF परिचालन)', desc: 'कुनै पनि आकस्मिक अवस्थामा ३ मिनेटभित्र दंगा नियन्त्रण गियरसहित तत्काल परिचालन।' },
+    { id: '1', title: 'थप मद्धत माग भएमा तुरुन्तै परिचालन)', desc: 'कुनै पनि आकस्मिक अवस्थामा ३ मिनेटभित्र दंगा नियन्त्रण गियरसहित तत्काल परिचालन।' },
     { id: '2', title: 'विशिष्ट व्यक्ति तथा क्षेत्र सुरक्षा', desc: 'उपत्यकाका संवेदनशील कूटनीतिक नियोग र विशिष्ट अतिथिको उच्च सतर्कता सुरक्षा।' },
-    { id: '3', title: '२४ घन्टे मोबाइल गस्ती', desc: 'काठमाडौँ उपत्यका चक्रपथ तथा मुख्य नाकाहरूमा निरन्तर सुरक्षा गस्ती र चेकप्वाइन्ट।' },
+    { id: '3', title: '२४ घन्टा स्टेण्डबाई ', desc: 'काठमाडौँ उपत्यका भित्र केही अप्रिय घटना घटेमा तुरुन्तै परिचालन हुने गरी।' },
     { id: '4', title: 'डिजिटल हाजिरी तथा अनुशासन', desc: '५० मिटर Geofence सिमाभित्र प्रमाणित डिजिटल हाजिरी तथा परिपत्र कार्यान्वयन।' }
   ];
 
@@ -136,7 +136,7 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
         <div className="h-48 sm:h-64 relative overflow-hidden bg-slate-950">
           <img 
             src={config.bannerUrl || BATTALION_BANNER} 
-            alt="कार्यालय कमाण्ड हेडक्वार्टर" 
+            alt="कार्यालय कमाण्ड सेन्टर" 
             className="w-full h-full object-cover brightness-75"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
@@ -153,7 +153,7 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
               <div className="text-white">
                 <div className="flex items-center gap-2">
                   <span className="text-xs uppercase tracking-wider text-amber-400 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
-                    सशस्त्र प्रहरी बल, नेपाल
+                   काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २ महाराजगंज
                   </span>
                   <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -162,7 +162,7 @@ export const OfficeProfileTab: React.FC<OfficeProfileTabProps> = ({
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black mt-1 text-white">{config.name}</h1>
                 <p className="text-xs sm:text-sm text-slate-300 font-medium">
-                  {config.address} • कमाण्ड हेडक्वार्टर तथा द्रुत प्रतिकार्य (QRF) आधार शिविर
+                  {config.address} • कमाण्ड सेन्टर
                 </p>
               </div>
             </div>
