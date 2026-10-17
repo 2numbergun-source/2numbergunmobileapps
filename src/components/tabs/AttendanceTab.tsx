@@ -35,6 +35,10 @@ import {
 const DUTY_START_MINUTES = 9 * 60; // बिहान ९:०० बजे ड्युटी सुरु
 const NEPAL_TZ = 'Asia/Kathmandu';
 const MAX_POSITION_AGE_MS = 30 * 1000; // ३० सेकेन्डभन्दा पुरानो GPS स्थान मान्य छैन
+
+// हाजिरी केवल यो केन्द्र बिन्दु (महाराजगञ्ज गण मुख्यालय) बाट MAX_DISTANCE_METERS भित्रबाट मात्र लाग्छ
+const HQ_CENTER = { lat: 27.732266944760777, lng: 85.32241573526184 };
+const MAX_DISTANCE_METERS = 50;
 const PIN_MAX_ATTEMPTS = 5; // गलत PIN को अधिकतम प्रयास
 const PIN_LOCK_MS = 60 * 1000; // सीमा नाघेपछि १ मिनेट लक
 // गेटको QR मा लेखिने कोड। battalionConfig.qrToken सेट गरेर यसलाई गोप्य राख्नुहोस्।
@@ -102,8 +106,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
   // Geolocation & geofence state (वास्तविक GPS मात्र)
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
-    lat: battalionConfig.centerCoords.lat,
-    lng: battalionConfig.centerCoords.lng,
+    lat: HQ_CENTER.lat,
+    lng: HQ_CENTER.lng,
   });
   const [distanceMeters, setDistanceMeters] = useState<number>(0);
   const [gpsFixed, setGpsFixed] = useState<boolean>(false);
@@ -160,8 +164,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     const dist = calculateDistanceMeters(
       currentCoords.lat,
       currentCoords.lng,
-      battalionConfig.centerCoords.lat,
-      battalionConfig.centerCoords.lng
+      HQ_CENTER.lat,
+      HQ_CENTER.lng
     );
     setDistanceMeters(Math.round(dist));
   }, [currentCoords, battalionConfig]);
@@ -248,7 +252,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isWithinBoundary = gpsFixed && distanceMeters <= battalionConfig.virtualBoundaryMeters;
+  const isWithinBoundary = gpsFixed && distanceMeters <= MAX_DISTANCE_METERS;
 
   // ---------------- QR स्क्यानर ----------------
   const stopScanner = () => {
@@ -390,15 +394,15 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
         calculateDistanceMeters(
           coords.lat,
           coords.lng,
-          battalionConfig.centerCoords.lat,
-          battalionConfig.centerCoords.lng
+          HQ_CENTER.lat,
+          HQ_CENTER.lng
         )
       );
       setCurrentCoords(coords);
       setDistanceMeters(dist);
       setGpsAccuracy(Math.round(pos.coords.accuracy));
       setGpsFixed(true);
-      if (pos.coords.accuracy > battalionConfig.virtualBoundaryMeters) {
+      if (pos.coords.accuracy > MAX_DISTANCE_METERS) {
         alert(`GPS को सटीकता कमजोर छ (±${Math.round(pos.coords.accuracy)} मिटर)। खुला ठाउँमा गएर केही बेरपछि पुनः प्रयास गर्नुहोस्।`);
         return;
       }
@@ -408,8 +412,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       alert(gpsErrorText(err) + ' (GPS बिना हाजिरी लाग्दैन।)');
       return;
     }
-    if (dist > battalionConfig.virtualBoundaryMeters) {
-      alert(`तपाईं गण परिसरभन्दा बाहिर हुनुहुन्छ (${dist} मिटर)। ${battalionConfig.virtualBoundaryMeters} मिटर भित्र आएर मात्र हाजिरी लगाउन सकिन्छ।`);
+    if (dist > MAX_DISTANCE_METERS) {
+      alert(`तपाईं गण परिसरभन्दा बाहिर हुनुहुन्छ (${dist} मिटर)। ${MAX_DISTANCE_METERS} मिटर भित्र आएर मात्र हाजिरी लगाउन सकिन्छ।`);
       return;
     }
 
@@ -436,7 +440,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       verificationMethod: verificationType === 'pin' ? 'GPS + PIN' : 'GPS + QR',
       isLate,
       lateMinutes,
-      remarks: `गण ${battalionConfig.virtualBoundaryMeters} मि. सिमाभित्र (${dist} मिटर) प्रमाणित`,
+      remarks: `गण ${MAX_DISTANCE_METERS} मि. सिमाभित्र (${dist} मिटर) प्रमाणित`,
     };
 
     onAddAttendanceRecord(newRecord);
@@ -744,11 +748,11 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <h2 className="text-lg sm:text-xl font-extrabold text-white">
-                गणको {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटरभित्र आधारित डिजिटल हाजिरी प्रणाली
+                गणको {toNepaliNumber(MAX_DISTANCE_METERS)} मिटरभित्र आधारित डिजिटल हाजिरी प्रणाली
               </h2>
             </div>
             <p className="text-xs text-slate-400 max-w-2xl">
-              सशस्त्र प्रहरी गण नं. २ महाराजगञ्जको निश्चित GPS विन्दुबाट {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर भर्चुअल बाउन्ड्री (Geofence) भित्र प्रवेश गरेपछि मात्र PIN वा QR सहितको दुई तहको प्रमाणीकरणमा हाजिरी सक्रिय हुन्छ।
+              सशस्त्र प्रहरी गण नं. २ महाराजगञ्जको निश्चित GPS विन्दुबाट {toNepaliNumber(MAX_DISTANCE_METERS)} मिटर भर्चुअल बाउन्ड्री (Geofence) भित्र प्रवेश गरेपछि मात्र PIN वा QR सहितको दुई तहको प्रमाणीकरणमा हाजिरी सक्रिय हुन्छ।
             </p>
           </div>
 
@@ -794,7 +798,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             <div className="flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-400" />
               <h3 className="text-sm font-bold text-white">
-                Geofence GPS दूरी स्थिति ({toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर सिमा)
+                Geofence GPS दूरी स्थिति ({toNepaliNumber(MAX_DISTANCE_METERS)} मिटर सिमा)
               </h3>
             </div>
             <button
@@ -828,23 +832,23 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 ) : isWithinBoundary ? (
                   <span className="text-emerald-400 flex items-center justify-center gap-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    {toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मिटर सुरक्षा परिधिभित्र (हाजिरी योग्य)
+                    {toNepaliNumber(MAX_DISTANCE_METERS)} मिटर सुरक्षा परिधिभित्र (हाजिरी योग्य)
                   </span>
                 ) : (
                   <span className="text-red-400 flex items-center justify-center gap-1">
                     <AlertCircle className="w-4 h-4" />
-                    परिधि बाहिर ({distanceMeters - battalionConfig.virtualBoundaryMeters} मिटर टाढा) — हाजिरी लाग्दैन
+                    परिधि बाहिर ({distanceMeters - MAX_DISTANCE_METERS} मिटर टाढा) — हाजिरी लाग्दैन
                   </span>
                 )}
               </div>
               <p className="text-[10px] text-slate-400">
-                केन्द्र विन्दु: महाराजगञ्ज गण मुख्यालय ({battalionConfig.centerCoords.lat}, {battalionConfig.centerCoords.lng})
+                केन्द्र विन्दु: महाराजगञ्ज गण मुख्यालय ({HQ_CENTER.lat}, {HQ_CENTER.lng})
               </p>
             </div>
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
-            <span>वास्तविक GPS मात्र ({toNepaliNumber(battalionConfig.virtualBoundaryMeters)} मि. नियम कडा)</span>
+            <span>वास्तविक GPS मात्र ({toNepaliNumber(MAX_DISTANCE_METERS)} मि. नियम कडा)</span>
             <span className={`px-2.5 py-1 rounded text-[11px] font-bold ${gpsFixed ? 'bg-emerald-900/70 text-emerald-200' : 'bg-red-900/80 text-red-200 border border-red-700'}`}>
               {gpsFixed ? `GPS प्राप्त${gpsAccuracy !== null ? ` (±${gpsAccuracy} मि.)` : ''}` : 'GPS छैन'}
             </span>
