@@ -393,21 +393,7 @@ export const OfficerFormModal: React.FC<OfficerFormModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">कम्पनी तथा कार्यदल</label>
-              <select
-                value={formData.companyOrTeam || 'क कम्पनी'}
-                onChange={(e) => handleChange('companyOrTeam', e.target.value)}
-                className="w-full bg-[#0c1630] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="क कम्पनी">क कम्पनी</option>
-                <option value="ख कम्पनी">ख कम्पनी</option>
-                <option value="विशेष कार्यदल (QRF)">विशेष कार्यदल (QRF)</option>
-                <option value="प्रमुख कमाण्ड">प्रमुख कमाण्ड</option>
-              </select>
-            </div>
-
-            {/* Row 9 */}
+                       {/* Row 9 */}
             <div>
               <label className="block text-[11px] font-semibold text-slate-300 mb-1">रक्त समूह (Blood Group)</label>
               <select
